@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test src/utils/*.test.js",
+    "test": "node --test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",

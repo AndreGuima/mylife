@@ -146,13 +146,14 @@ def test_toggle_rejects_before_start_time(db_session):
         start_time=time(19, 0),
         end_time=time(20, 0),
     )
+    now_dt = datetime(2026, 2, 4, 3, 0)
 
     with pytest.raises(ValueError):
         HabitLogService.toggle_today(
             db_session,
             user_id=user_id,
             habit_id=habit.id,
-            now_dt=datetime(2026, 2, 4, 3, 0),
+            now_dt=now_dt,
         )
 
     logs = db_session.query(HabitLog).all()

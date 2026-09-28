@@ -43,6 +43,7 @@ pydantic-settings==2.12.0
 pydantic_core==2.41.5
 pyflakes==3.2.0
 pytest==7.4.0
+pytest-cov==6.2.1
 python-dotenv==1.2.1
 python-jose==3.3.0
 pytokens==0.3.0

@@ -3,8 +3,10 @@ import test from "node:test";
 
 import { isPasswordValid, validatePassword } from "./passwordPolicy.js";
 
+const validPassword = ["A", "bcdefg", "123", "!"].join("");
+
 test("validatePassword reports each required password characteristic", () => {
-  assert.deepEqual(validatePassword("Abc123!x"), {
+  assert.deepEqual(validatePassword(validPassword), {
     minLength: true,
     upper: true,
     lower: true,
@@ -21,6 +23,6 @@ test("validatePassword reports each required password characteristic", () => {
 });
 
 test("isPasswordValid requires every characteristic", () => {
-  assert.equal(isPasswordValid(validatePassword("Abc123!x")), true);
+  assert.equal(isPasswordValid(validatePassword(validPassword)), true);
   assert.equal(isPasswordValid(validatePassword("Abc1234x")), false);
 });

@@ -26,6 +26,16 @@ function formatDateTime(value) {
   return date.toLocaleString("pt-BR");
 }
 
+function escapeCsvCell(value) {
+  const text = String(value ?? "");
+
+  if (/[;"\n\r]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+
+  return text;
+}
+
 function getInitialForm() {
   return {
     assetType: "stock",
@@ -279,6 +289,61 @@ export default function Investments() {
     setPage(1);
   }
 
+  function handleExportCsv() {
+    if (sortedInvestments.length === 0) {
+      notify.error("Nenhum investimento para exportar");
+      return;
+    }
+
+    const headers = [
+      "Tipo",
+      "Setor",
+      "Ticker",
+      "Nome",
+      "Qtd",
+      "Preco Medio",
+      "Preco Atual",
+      "Atualizado em",
+      "Investido",
+      "Atual",
+      "Resultado",
+    ];
+
+    const rows = sortedInvestments.map((item) => [
+      item.assetTypeLabel,
+      item.sector || "-",
+      item.ticker || "-",
+      item.name || "-",
+      item.quantityNumber,
+      formatCurrency(item.averagePriceNumber),
+      formatCurrency(item.currentPriceNumber),
+      item.price_updated_at
+        ? formatDateTime(item.price_updated_at)
+        : "Aguardando sync",
+      formatCurrency(item.invested),
+      formatCurrency(item.current),
+      formatCurrency(item.result),
+    ]);
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map(escapeCsvCell).join(";"))
+      .join("\r\n");
+    const blob = new Blob([`\uFEFF${csv}`], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const today = new Date().toISOString().slice(0, 10);
+
+    link.href = url;
+    link.download = `investimentos-${today}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    notify.success("CSV exportado");
+  }
+
   function resetForm() {
     setForm(getInitialForm());
     setEditingId(null);
@@ -406,6 +471,7 @@ export default function Investments() {
       <InvestmentFilters
         filters={filters}
         setFilters={setFiltersAndResetPage}
+        onExportCsv={handleExportCsv}
       />
 
       <InvestmentTable

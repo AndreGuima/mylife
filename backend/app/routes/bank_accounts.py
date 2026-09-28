@@ -39,6 +39,7 @@ def _to_response(account: BankAccount) -> BankAccountRead:
         objective_dream_title=account.objective_dream.title,
         total_value=account.total_value,
         allow_investment_income=bool(account.allow_investment_income),
+        allow_payments=bool(account.allow_payments),
         created_at=account.created_at,
         updated_at=account.updated_at,
     )
@@ -77,6 +78,7 @@ def _get_user_account_or_404(
 @router.get("", response_model=list[BankAccountRead])
 def list_accounts(
     allow_investment_income: bool | None = Query(default=None),
+    allow_payments: bool | None = Query(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -89,6 +91,8 @@ def list_accounts(
         query = query.filter(
             BankAccount.allow_investment_income.is_(allow_investment_income)
         )
+    if allow_payments is not None:
+        query = query.filter(BankAccount.allow_payments.is_(allow_payments))
 
     accounts = query.order_by(
         BankAccount.created_at.desc(), BankAccount.id.desc()
@@ -174,6 +178,7 @@ def create_account(
             objective_dream_id=dream.id,
             total_value=to_money_decimal("0.00"),
             allow_investment_income=bool(payload.allow_investment_income),
+            allow_payments=bool(payload.allow_payments),
         )
 
         if not account.name:
@@ -339,6 +344,8 @@ def update_account(
             )
         if payload.allow_investment_income is not None:
             account.allow_investment_income = bool(payload.allow_investment_income)
+        if payload.allow_payments is not None:
+            account.allow_payments = bool(payload.allow_payments)
 
         db.flush()
         sync_dream_milestone_financial_progress(db, user.id, account.objective_dream_id)

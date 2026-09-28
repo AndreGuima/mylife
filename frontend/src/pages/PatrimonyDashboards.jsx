@@ -5,7 +5,10 @@ import bankAccountsService from "../services/bankAccountsService";
 import { notify } from "../core/toast";
 import { getApiErrorMessage } from "../core/apiError";
 import { describeArc } from "../utils/charts/pieMath";
-import { buildPatrimonyComparisonSummary } from "../utils/patrimonyComparison";
+import {
+  buildPatrimonyComparisonSummary,
+  getPatrimonyComparisonDelta,
+} from "../utils/patrimonyComparison";
 
 function toDateKey(value) {
   if (!value) return null;
@@ -488,8 +491,11 @@ export default function PatrimonyDashboards() {
             </thead>
             <tbody>
               {comparisonSummary.map((item) => {
-                const delta = item.value - comparisonSummary[3].value;
-                const isPositive = delta >= 0;
+                const delta = getPatrimonyComparisonDelta(
+                  item,
+                  comparisonSummary,
+                );
+                const isPositive = delta.value >= 0;
                 return (
                   <tr
                     key={item.label}
@@ -498,15 +504,13 @@ export default function PatrimonyDashboards() {
                     <td className="py-3 pr-4 font-medium">{item.label}</td>
                     <td className="py-3">
                       <div className="font-semibold">{toMoney(item.value)}</div>
-                      {item.label !== "Patrimônio atual" && (
-                        <div
-                          className={`text-xs ${isPositive ? "text-emerald-600" : "text-rose-600"}`}
-                        >
-                          {isPositive ? "+" : ""}
-                          {toMoney(Math.abs(delta))}{" "}
-                          {isPositive ? "acima" : "abaixo"} do mês passado
-                        </div>
-                      )}
+                      <div
+                        className={`text-xs ${isPositive ? "text-emerald-600" : "text-rose-600"}`}
+                      >
+                        {isPositive ? "+" : ""}
+                        {toMoney(Math.abs(delta.value))}{" "}
+                        {isPositive ? "acima" : "abaixo"} {delta.referenceLabel}
+                      </div>
                     </td>
                   </tr>
                 );

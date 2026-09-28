@@ -68,6 +68,24 @@ export function buildPatrimonyComparisonSummary(
   ];
 }
 
+export function getPatrimonyComparisonDelta(item, comparisonSummary = []) {
+  const current = comparisonSummary[0]?.value ?? 0;
+  const yesterday = comparisonSummary[1]?.value ?? 0;
+  const toCents = (value) => Math.round(value * 100) / 100;
+
+  if (item?.label === "Patrimônio atual") {
+    return {
+      value: toCents(current - yesterday),
+      referenceLabel: "de ontem",
+    };
+  }
+
+  return {
+    value: toCents(Number(item?.value || 0) - current),
+    referenceLabel: "do patrimônio atual",
+  };
+}
+
 export function buildPreviousAccountValuesByLastChange(snapshots = []) {
   const lastValuesByAccount = new Map();
   const previousValuesByAccount = new Map();

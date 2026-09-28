@@ -69,7 +69,11 @@ def _get_user_expense_or_404(db: Session, user_id: int, expense_id: int) -> Expe
 
 
 def _validate_account_belongs_to_user(
-    db: Session, user_id: int, account_id: int
+    db: Session,
+    user_id: int,
+    account_id: int,
+    *,
+    require_payments_enabled: bool = False,
 ) -> None:
     account = (
         db.query(BankAccount)
@@ -78,10 +82,20 @@ def _validate_account_belongs_to_user(
     )
     if not account:
         raise HTTPException(status_code=400, detail="Conta bancária inválida")
+    if require_payments_enabled and not bool(account.allow_payments):
+        raise HTTPException(
+            status_code=400,
+            detail="Conta não habilitada para lançamento de despesas",
+        )
 
 
 def _get_user_account_or_400(
-    db: Session, user_id: int, account_id: int | None, *, for_update: bool = False
+    db: Session,
+    user_id: int,
+    account_id: int | None,
+    *,
+    for_update: bool = False,
+    require_payments_enabled: bool = False,
 ) -> BankAccount:
     if account_id is None:
         raise HTTPException(status_code=400, detail="Conta bancária inválida")
@@ -93,6 +107,11 @@ def _get_user_account_or_400(
     account = query.first()
     if not account:
         raise HTTPException(status_code=400, detail="Conta bancária inválida")
+    if require_payments_enabled and not bool(account.allow_payments):
+        raise HTTPException(
+            status_code=400,
+            detail="Conta não habilitada para lançamento de despesas",
+        )
     return account
 
 
@@ -350,7 +369,11 @@ def create_expense(
 
         if payload.payment_method == "debit":
             account = _get_user_account_or_400(
-                db, user.id, payload.bank_account_id, for_update=True
+                db,
+                user.id,
+                payload.bank_account_id,
+                for_update=True,
+                require_payments_enabled=True,
             )
             apply_account_delta(
                 db,
@@ -439,7 +462,12 @@ def update_expense(
                     status_code=400, detail="bank_account_id é obrigatório para débito"
                 )
             next_credit_card_id = None
-            _validate_account_belongs_to_user(db, user.id, next_bank_account_id)
+            _validate_account_belongs_to_user(
+                db,
+                user.id,
+                next_bank_account_id,
+                require_payments_enabled=True,
+            )
 
         if next_payment_method == "credit":
             if next_credit_card_id is None:
@@ -568,7 +596,11 @@ def pay_credit_invoice(
     with transaction_scope(db):
         card = _get_user_card_or_400(db, user.id, payload.credit_card_id)
         account = _get_user_account_or_400(
-            db, user.id, payload.bank_account_id, for_update=True
+            db,
+            user.id,
+            payload.bank_account_id,
+            for_update=True,
+            require_payments_enabled=True,
         )
 
         expenses = (

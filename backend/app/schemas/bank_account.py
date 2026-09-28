@@ -9,6 +9,7 @@ class BankAccountCreate(BaseModel):
     objective_dream_id: int
     total_value: Decimal = Field(ge=0, decimal_places=2)
     allow_investment_income: bool = False
+    allow_payments: bool = True
 
 
 class BankAccountUpdate(BaseModel):
@@ -16,6 +17,7 @@ class BankAccountUpdate(BaseModel):
     objective_dream_id: int | None = None
     total_value: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     allow_investment_income: bool | None = None
+    allow_payments: bool | None = None
 
 
 class BankAccountRead(BaseModel):
@@ -25,6 +27,7 @@ class BankAccountRead(BaseModel):
     objective_dream_title: str
     total_value: Decimal
     allow_investment_income: bool
+    allow_payments: bool
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

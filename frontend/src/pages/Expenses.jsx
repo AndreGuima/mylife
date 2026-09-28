@@ -112,7 +112,7 @@ export default function Expenses() {
       try {
         const [accountsData, cardsData, categoriesData, expensesData] =
           await Promise.all([
-            bankAccountsService.list(),
+            bankAccountsService.list({ allow_payments: true }),
             creditCardsService.list(),
             expenseCategoriesService.list(),
             expensesService.list(),

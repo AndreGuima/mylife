@@ -421,7 +421,7 @@ export default function Dreams() {
   }
 
   if (loading) {
-    return <p className="p-4 themed-muted">Carregando sonhos...</p>;
+    return <p className="p-4 themed-muted">Carregando objetivos...</p>;
   }
 
   return (
@@ -429,8 +429,8 @@ export default function Dreams() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Objetivos Financeiros</h1>
         <p className="themed-muted mt-2">
-          Estruture seus objetivos financeiros no modelo SMART, conecte hábitos
-          e acompanhe marcos em timeline.
+          Estruture seus objetivos financeiros, conecte hábitos e acompanhe
+          marcos em timeline.
         </p>
       </div>
 
@@ -440,7 +440,7 @@ export default function Dreams() {
             onSubmit={handleCreateDream}
             className="xl:col-span-2 themed-card border themed-border rounded-xl p-5 shadow-sm space-y-4 h-fit"
           >
-            <h2 className="text-xl font-semibold">Novo sonho</h2>
+            <h2 className="text-xl font-semibold">Novo objetivo</h2>
 
             <div>
               <label className="block text-sm font-medium mb-1">Nome</label>
@@ -1108,22 +1108,17 @@ export default function Dreams() {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-                      <div className="border themed-border rounded-lg p-4 bg-green-50">
-                        <div className="text-xs text-green-900">Progresso</div>
-                        <div className="text-2xl font-bold text-green-900">
-                          {progress}%
-                        </div>
+                    <div className="mt-4 relative h-12 bg-[var(--line-color)] rounded-lg overflow-hidden">
+                      <div
+                        className="absolute inset-y-0 left-0 bg-green-500"
+                        style={{ width: `${progress}%` }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center text-lg font-bold text-green-950">
+                        {progress}%
                       </div>
                     </div>
-
-                    <div className="mt-4">
-                      <div className="h-2 bg-[var(--line-color)] rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-green-500"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
+                    <div className="sr-only" aria-live="polite">
+                      Progresso: {progress}%
                     </div>
 
                     <div className="mt-4">

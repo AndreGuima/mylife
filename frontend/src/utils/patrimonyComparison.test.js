@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   buildPatrimonyComparisonSummary,
   buildPreviousAccountValuesByLastChange,
+  getPatrimonyComparisonDelta,
 } from "./patrimonyComparison.js";
 
 test("buildPatrimonyComparisonSummary returns current, yesterday, week and month values", () => {
@@ -56,4 +57,26 @@ test("buildPreviousAccountValuesByLastChange keeps each account last changed val
 
   assert.equal(previousValues.get(10), 100);
   assert.equal(previousValues.get(20), 200);
+});
+
+test("getPatrimonyComparisonDelta compares each row against current patrimony", () => {
+  const summary = [
+    { label: "Patrimônio atual", value: 578815.12 },
+    { label: "Ontem", value: 573493.59 },
+    { label: "Semana passada", value: 565613.08 },
+    { label: "Mês passado", value: 574604.48 },
+  ];
+
+  assert.deepEqual(getPatrimonyComparisonDelta(summary[0], summary), {
+    value: 5321.53,
+    referenceLabel: "de ontem",
+  });
+  assert.deepEqual(getPatrimonyComparisonDelta(summary[1], summary), {
+    value: -5321.53,
+    referenceLabel: "do patrimônio atual",
+  });
+  assert.deepEqual(getPatrimonyComparisonDelta(summary[3], summary), {
+    value: -4210.64,
+    referenceLabel: "do patrimônio atual",
+  });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import reportsService from "../services/reportsService";
 import { notify } from "../core/toast";
@@ -10,6 +10,24 @@ function toDateInputValue(date) {
     .slice(0, 10);
 }
 
+function getShortcutPeriod(shortcut) {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+
+  if (shortcut === "thisMonth") {
+    return {
+      fromDate: toDateInputValue(new Date(year, month, 1)),
+      toDate: toDateInputValue(new Date(year, month + 1, 0)),
+    };
+  }
+
+  return {
+    fromDate: toDateInputValue(new Date(year, month - 1, 1)),
+    toDate: toDateInputValue(new Date(year, month, 0)),
+  };
+}
+
 export default function EntriesVsExpenses() {
   const [rows, setRows] = useState([]);
   const [fromDate, setFromDate] = useState(() => {
@@ -19,22 +37,38 @@ export default function EntriesVsExpenses() {
   });
   const [toDate, setToDate] = useState(() => toDateInputValue(new Date()));
   const [loading, setLoading] = useState(false);
+  const requestId = useRef(0);
 
-  async function loadData() {
+  async function loadData(period = { fromDate, toDate }) {
+    const currentRequestId = requestId.current + 1;
+    requestId.current = currentRequestId;
     setLoading(true);
     try {
       const data = await reportsService.dailyCashflow({
-        from: fromDate,
-        to: toDate,
+        from: period.fromDate,
+        to: period.toDate,
       });
-      setRows(Array.isArray(data) ? data : []);
+      if (currentRequestId === requestId.current) {
+        setRows(Array.isArray(data) ? data : []);
+      }
     } catch (err) {
-      notify.error(
-        getApiErrorMessage(err, "Erro ao carregar entradas e saídas"),
-      );
+      if (currentRequestId === requestId.current) {
+        notify.error(
+          getApiErrorMessage(err, "Erro ao carregar entradas e saídas"),
+        );
+      }
     } finally {
-      setLoading(false);
+      if (currentRequestId === requestId.current) {
+        setLoading(false);
+      }
     }
+  }
+
+  function applyPeriod(shortcut) {
+    const period = getShortcutPeriod(shortcut);
+    setFromDate(period.fromDate);
+    setToDate(period.toDate);
+    void loadData(period);
   }
 
   useEffect(() => {
@@ -76,6 +110,24 @@ export default function EntriesVsExpenses() {
       </p>
 
       <div className="themed-card themed-border border rounded-xl p-4 mb-4">
+        <div className="flex flex-wrap gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => applyPeriod("thisMonth")}
+            className="themed-card themed-border border px-3 py-2 rounded hover:opacity-90 transition"
+            disabled={loading}
+          >
+            Mês Atual
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPeriod("lastMonth")}
+            className="themed-card themed-border border px-3 py-2 rounded hover:opacity-90 transition"
+            disabled={loading}
+          >
+            Mês Passado
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           <input
             type="date"
@@ -92,7 +144,7 @@ export default function EntriesVsExpenses() {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={loadData}
+              onClick={() => void loadData({ fromDate, toDate })}
               className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
               disabled={loading}
             >

@@ -70,7 +70,7 @@ export default function PayCreditCardInvoice() {
       try {
         const [cardsData, accountsData] = await Promise.all([
           creditCardsService.list(),
-          bankAccountsService.list(),
+          bankAccountsService.list({ allow_payments: true }),
         ]);
         const list = Array.isArray(cardsData) ? cardsData : [];
         const accountList = Array.isArray(accountsData) ? accountsData : [];

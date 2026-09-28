@@ -36,6 +36,7 @@ function getInitialAccountForm() {
     objectiveDreamId: "",
     totalValue: "",
     allowInvestmentIncome: false,
+    allowPayments: true,
   };
 }
 
@@ -115,6 +116,7 @@ export default function BankAccounts() {
       objectiveDreamId: String(account.objective_dream_id),
       totalValue: formatCurrencyInput(String(account.total_value || "")),
       allowInvestmentIncome: Boolean(account.allow_investment_income),
+      allowPayments: Boolean(account.allow_payments),
     });
   }
 
@@ -147,6 +149,7 @@ export default function BankAccounts() {
         objective_dream_id: objectiveDreamId,
         total_value: totalValue,
         allow_investment_income: Boolean(accountForm.allowInvestmentIncome),
+        allow_payments: Boolean(accountForm.allowPayments),
       };
 
       if (editingAccountId === null) {
@@ -213,6 +216,22 @@ export default function BankAccounts() {
     }
   }
 
+  async function handleTogglePayments(account) {
+    try {
+      const updated = await bankAccountsService.update(account.id, {
+        allow_payments: !account.allow_payments,
+      });
+      setAccounts((prev) =>
+        prev.map((item) => (item.id === account.id ? updated : item)),
+      );
+      notify.success("Configuração de despesas atualizada");
+    } catch (err) {
+      notify.error(
+        getApiErrorMessage(err, "Erro ao atualizar configuração de despesas"),
+      );
+    }
+  }
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -261,11 +280,11 @@ export default function BankAccounts() {
 
         <form
           onSubmit={handleSaveAccount}
-          className="grid grid-cols-1 md:grid-cols-5 gap-3 items-start"
+          className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start"
         >
           <input
             type="text"
-            className="themed-input rounded px-3 py-2"
+            className="themed-input rounded px-3 py-2 lg:col-span-4"
             placeholder="Nome da conta"
             autoComplete="off"
             value={accountForm.name}
@@ -274,7 +293,7 @@ export default function BankAccounts() {
             }
           />
 
-          <div className="relative">
+          <div className="relative lg:col-span-4">
             <Link
               to="/dreams"
               className="absolute -top-6 left-0 text-sm font-medium text-blue-500 hover:underline"
@@ -304,7 +323,7 @@ export default function BankAccounts() {
           <input
             type="text"
             inputMode="decimal"
-            className="themed-input rounded px-3 py-2"
+            className="themed-input rounded px-3 py-2 lg:col-span-4"
             placeholder="Valor total"
             value={accountForm.totalValue}
             onChange={(e) =>
@@ -315,21 +334,37 @@ export default function BankAccounts() {
             }
           />
 
-          <label className="flex items-center gap-2 px-3 py-2 text-sm">
-            <input
-              type="checkbox"
-              checked={Boolean(accountForm.allowInvestmentIncome)}
-              onChange={(e) =>
-                setAccountForm((prev) => ({
-                  ...prev,
-                  allowInvestmentIncome: e.target.checked,
-                }))
-              }
-            />
-            Habilitar para proventos
-          </label>
+          <div className="lg:col-span-8 flex flex-col sm:flex-row sm:flex-wrap gap-3 pt-1">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={Boolean(accountForm.allowInvestmentIncome)}
+                onChange={(e) =>
+                  setAccountForm((prev) => ({
+                    ...prev,
+                    allowInvestmentIncome: e.target.checked,
+                  }))
+                }
+              />
+              <span>Habilitar para proventos</span>
+            </label>
 
-          <div className="flex gap-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={Boolean(accountForm.allowPayments)}
+                onChange={(e) =>
+                  setAccountForm((prev) => ({
+                    ...prev,
+                    allowPayments: e.target.checked,
+                  }))
+                }
+              />
+              <span>Permitir lançamento de despesas</span>
+            </label>
+          </div>
+
+          <div className="lg:col-span-4 flex gap-2 lg:justify-end">
             <button
               type="submit"
               disabled={savingAccount}
@@ -429,7 +464,8 @@ export default function BankAccounts() {
               { key: "objective", label: "Objetivo" },
               { key: "total_value", label: "Valor Total" },
               { key: "investment_income", label: "Proventos" },
-              { key: "actions", label: "Ações", width: 360 },
+              { key: "payments", label: "Despesas" },
+              { key: "actions", label: "Ações", width: 520 },
             ]}
             data={filteredAccounts}
             renderRow={(account) => {
@@ -450,6 +486,9 @@ export default function BankAccounts() {
                       : "Desabilitado"}
                   </td>
                   <td className="p-2 border themed-border">
+                    {account.allow_payments ? "Permitido" : "Bloqueado"}
+                  </td>
+                  <td className="p-2 border themed-border">
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
@@ -459,6 +498,15 @@ export default function BankAccounts() {
                         {account.allow_investment_income
                           ? "Desabilitar proventos"
                           : "Habilitar proventos"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePayments(account)}
+                        className="px-2 py-1 bg-slate-600 text-white rounded hover:opacity-90"
+                      >
+                        {account.allow_payments
+                          ? "Bloquear despesas"
+                          : "Permitir despesas"}
                       </button>
                       <button
                         type="button"

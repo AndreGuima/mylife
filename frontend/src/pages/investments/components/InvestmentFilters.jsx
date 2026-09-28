@@ -1,9 +1,13 @@
-export default function InvestmentFilters({ filters, setFilters }) {
+export default function InvestmentFilters({
+  filters,
+  setFilters,
+  onExportCsv,
+}) {
   return (
     <div className="themed-card themed-border border rounded-xl p-5 mb-4">
       <h2 className="text-xl font-semibold mb-4">Filtrar carteira</h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <input
           type="text"
           className="themed-input rounded px-3 py-2"
@@ -32,6 +36,14 @@ export default function InvestmentFilters({ filters, setFilters }) {
           className="themed-card themed-border border px-4 py-2 rounded hover:opacity-90"
         >
           Limpar filtros
+        </button>
+
+        <button
+          type="button"
+          onClick={onExportCsv}
+          className="themed-card themed-border border px-4 py-2 rounded hover:opacity-90"
+        >
+          Exportar CSV
         </button>
       </div>
     </div>

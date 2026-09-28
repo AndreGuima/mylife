@@ -13,13 +13,16 @@ def _create_dream(client: TestClient) -> int:
     return dream_res.json()["id"]
 
 
-def _create_account(client: TestClient, dream_id: int) -> int:
+def _create_account(
+    client: TestClient, dream_id: int, *, allow_payments: bool = True
+) -> int:
     create_res = client.post(
         "/bank-accounts",
         json={
             "name": "Conta Principal",
             "objective_dream_id": dream_id,
             "total_value": "1000.00",
+            "allow_payments": allow_payments,
         },
     )
     assert create_res.status_code == 201
@@ -159,6 +162,30 @@ def test_expenses_validation_for_payment_source(client: TestClient):
         },
     )
     assert create_res.status_code == 400
+
+
+def test_create_debit_expense_rejects_account_without_payments(client: TestClient):
+    dream_id = _create_dream(client)
+    account_id = _create_account(client, dream_id, allow_payments=False)
+    category_id = _create_category(client, "Alimentacao")
+
+    create_res = client.post(
+        "/expenses",
+        json={
+            "value": "79.90",
+            "description": "Mercado",
+            "expense_category_id": category_id,
+            "payment_method": "debit",
+            "bank_account_id": account_id,
+            "credit_card_id": None,
+            "launch_date": "2026-02-20",
+        },
+    )
+    assert create_res.status_code == 400
+    assert (
+        create_res.json()["detail"]
+        == "Conta não habilitada para lançamento de despesas"
+    )
 
 
 def test_delete_debit_expense_restores_account_balance(client: TestClient):
@@ -528,6 +555,41 @@ def test_pay_credit_invoice_creates_debit_expense_and_marks_items_paid(
         == body["payment_expense"]["id"]
     )
     assert _get_account_total(client, account_id) == "850.00"
+
+
+def test_pay_credit_invoice_rejects_account_without_payments(client: TestClient):
+    dream_id = _create_dream(client)
+    account_id = _create_account(client, dream_id, allow_payments=False)
+    card_id = _create_card(client)
+    category_id = _create_category(client, "Saude")
+
+    credit = client.post(
+        "/expenses",
+        json={
+            "value": "80.00",
+            "description": "Consulta",
+            "expense_category_id": category_id,
+            "payment_method": "credit",
+            "bank_account_id": None,
+            "credit_card_id": card_id,
+            "launch_date": "2026-03-01",
+        },
+    )
+    assert credit.status_code == 201
+
+    pay_res = client.post(
+        "/expenses/pay-credit-invoice",
+        json={
+            "credit_card_id": card_id,
+            "bank_account_id": account_id,
+            "expense_ids": [credit.json()["id"]],
+            "launch_date": "2026-03-05",
+        },
+    )
+    assert pay_res.status_code == 400
+    assert (
+        pay_res.json()["detail"] == "Conta não habilitada para lançamento de despesas"
+    )
 
 
 def test_pay_credit_invoice_rejects_already_paid_item(client: TestClient):

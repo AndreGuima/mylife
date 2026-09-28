@@ -205,6 +205,23 @@ export default function Patrimony() {
     }
   }
 
+  async function handleTogglePayments(account) {
+    try {
+      const updated = await bankAccountsService.update(account.id, {
+        allow_payments: !account.allow_payments,
+      });
+      setAccounts((prev) =>
+        prev.map((item) => (item.id === account.id ? updated : item)),
+      );
+      notify.success("Configuração de despesas atualizada");
+      await loadSnapshots();
+    } catch (err) {
+      notify.error(
+        getApiErrorMessage(err, "Erro ao atualizar configuração de despesas"),
+      );
+    }
+  }
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -378,6 +395,10 @@ export default function Patrimony() {
                       ? "Habilitado"
                       : "Desabilitado"}
                   </p>
+                  <p className="themed-muted text-sm mt-1">
+                    Despesas:{" "}
+                    {account.allow_payments ? "Permitido" : "Bloqueado"}
+                  </p>
                   <p className="text-xl font-bold mt-2 flex items-center gap-2">
                     {showValues
                       ? Number(account.total_value).toLocaleString("pt-BR", {
@@ -473,6 +494,15 @@ export default function Patrimony() {
                       {account.allow_investment_income
                         ? "Desabilitar proventos"
                         : "Habilitar proventos"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePayments(account)}
+                      className="themed-link hover:underline"
+                    >
+                      {account.allow_payments
+                        ? "Bloquear despesas"
+                        : "Permitir despesas"}
                     </button>
                     <button
                       type="button"

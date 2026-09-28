@@ -66,6 +66,7 @@ uvicorn.log
 # =========================================
 # Dependências e cache
 node_modules/
+frontend/coverage/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

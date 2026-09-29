@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowDown, ArrowUp, Eye, EyeOff } from "lucide-react";
 import bankAccountsService from "../services/bankAccountsService";
 import dreamsService from "../services/dreamsService";
-import { confirm, notify } from "../core/toast";
+import { notify } from "../core/toast";
 import { getApiErrorMessage } from "../core/apiError";
 import { buildPreviousAccountValuesByLastChange } from "../utils/patrimonyComparison";
 
@@ -132,24 +132,6 @@ export default function Patrimony() {
     });
   }, [accountsWithPreviousValue, filters]);
 
-  function handleRemove(accountId) {
-    confirm({
-      message: "Deseja remover esta conta bancária?",
-      confirmText: "Remover",
-      cancelText: "Cancelar",
-      variant: "danger",
-      onConfirm: async () => {
-        try {
-          await bankAccountsService.remove(accountId);
-          setAccounts((prev) => prev.filter((item) => item.id !== accountId));
-          notify.success("Conta removida");
-        } catch (err) {
-          notify.error(getApiErrorMessage(err, "Erro ao remover conta"));
-        }
-      },
-    });
-  }
-
   function startUpdateValue(account) {
     setUpdatingValueId(account.id);
     setUpdatingValueInput(
@@ -185,40 +167,6 @@ export default function Patrimony() {
       notify.error(getApiErrorMessage(err, "Erro ao atualizar valor"));
     } finally {
       setSavingValueId(null);
-    }
-  }
-
-  async function handleToggleInvestmentIncome(account) {
-    try {
-      const updated = await bankAccountsService.update(account.id, {
-        allow_investment_income: !account.allow_investment_income,
-      });
-      setAccounts((prev) =>
-        prev.map((item) => (item.id === account.id ? updated : item)),
-      );
-      notify.success("Configuração de proventos atualizada");
-      await loadSnapshots();
-    } catch (err) {
-      notify.error(
-        getApiErrorMessage(err, "Erro ao atualizar configuração de proventos"),
-      );
-    }
-  }
-
-  async function handleTogglePayments(account) {
-    try {
-      const updated = await bankAccountsService.update(account.id, {
-        allow_payments: !account.allow_payments,
-      });
-      setAccounts((prev) =>
-        prev.map((item) => (item.id === account.id ? updated : item)),
-      );
-      notify.success("Configuração de despesas atualizada");
-      await loadSnapshots();
-    } catch (err) {
-      notify.error(
-        getApiErrorMessage(err, "Erro ao atualizar configuração de despesas"),
-      );
     }
   }
 
@@ -399,53 +347,69 @@ export default function Patrimony() {
                     Despesas:{" "}
                     {account.allow_payments ? "Permitido" : "Bloqueado"}
                   </p>
-                  <p className="text-xl font-bold mt-2 flex items-center gap-2">
-                    {showValues
-                      ? Number(account.total_value).toLocaleString("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        })
-                      : maskedMoney}
-                    {showValues && account.previous_total_value != null && (
-                      <span className="inline-flex items-center gap-1 text-sm">
-                        {(() => {
-                          const currentValue = Number(account.total_value || 0);
-                          const previousValue = Number(
-                            account.previous_total_value || 0,
-                          );
-                          const diffValue = currentValue - previousValue;
-                          const formattedDiff = `${diffValue > 0 ? "+" : ""}${diffValue.toLocaleString(
-                            "pt-BR",
-                            {
-                              style: "currency",
-                              currency: "BRL",
-                            },
-                          )}`;
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xl font-bold mt-2 flex items-center gap-2">
+                      {showValues
+                        ? Number(account.total_value).toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          })
+                        : maskedMoney}
+                      {showValues && account.previous_total_value != null && (
+                        <span className="inline-flex items-center gap-1 text-sm">
+                          {(() => {
+                            const currentValue = Number(
+                              account.total_value || 0,
+                            );
+                            const previousValue = Number(
+                              account.previous_total_value || 0,
+                            );
+                            const diffValue = currentValue - previousValue;
+                            const formattedDiff = `${diffValue > 0 ? "+" : ""}${diffValue.toLocaleString(
+                              "pt-BR",
+                              {
+                                style: "currency",
+                                currency: "BRL",
+                              },
+                            )}`;
 
-                          return (
-                            <>
-                              {currentValue > previousValue ? (
-                                <ArrowUp className="h-4 w-4 text-emerald-600" />
-                              ) : currentValue < previousValue ? (
-                                <ArrowDown className="h-4 w-4 text-rose-600" />
-                              ) : null}
-                              <span
-                                className={
-                                  currentValue > previousValue
-                                    ? "text-emerald-600"
-                                    : currentValue < previousValue
-                                      ? "text-rose-600"
-                                      : ""
-                                }
-                              >
-                                {formattedDiff}
-                              </span>
-                            </>
-                          );
-                        })()}
-                      </span>
+                            return (
+                              <>
+                                {currentValue > previousValue ? (
+                                  <ArrowUp className="h-4 w-4 text-emerald-600" />
+                                ) : currentValue < previousValue ? (
+                                  <ArrowDown className="h-4 w-4 text-rose-600" />
+                                ) : null}
+                                <span
+                                  className={
+                                    currentValue > previousValue
+                                      ? "text-emerald-600"
+                                      : currentValue < previousValue
+                                        ? "text-rose-600"
+                                        : ""
+                                  }
+                                >
+                                  {formattedDiff}
+                                </span>
+                              </>
+                            );
+                          })()}
+                        </span>
+                      )}
+                    </p>
+
+                    {!isUpdatingValue && (
+                      <div className="mt-2 flex justify-end sm:mt-0">
+                        <button
+                          type="button"
+                          onClick={() => startUpdateValue(account)}
+                          className="themed-link hover:underline text-sm min-h-10 w-full text-left sm:w-auto sm:px-2 sm:text-right"
+                        >
+                          Atualizar Valor
+                        </button>
+                      </div>
                     )}
-                  </p>
+                  </div>
 
                   {isUpdatingValue && (
                     <form
@@ -484,47 +448,6 @@ export default function Patrimony() {
                       </button>
                     </form>
                   )}
-
-                  <div className="flex gap-4 text-sm mt-3">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleInvestmentIncome(account)}
-                      className="themed-link hover:underline"
-                    >
-                      {account.allow_investment_income
-                        ? "Desabilitar proventos"
-                        : "Habilitar proventos"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleTogglePayments(account)}
-                      className="themed-link hover:underline"
-                    >
-                      {account.allow_payments
-                        ? "Bloquear despesas"
-                        : "Permitir despesas"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        isUpdatingValue
-                          ? cancelUpdateValue()
-                          : startUpdateValue(account)
-                      }
-                      className="themed-link hover:underline"
-                    >
-                      {isUpdatingValue
-                        ? "Cancelar atualização"
-                        : "Atualizar Valor"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRemove(account.id)}
-                      className="text-red-600 hover:underline"
-                    >
-                      Remover
-                    </button>
-                  </div>
                 </div>
               );
             })}

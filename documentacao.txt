@@ -112,8 +112,6 @@
         npx prettier --check src/pages/Patrimony.jsx
 
 ### para commitar, no final do dia, testes
-    ### Crie testes para essa nova feature que acabamos de realizar:
-    ./ver_testes.sh 
     ./quality-check.sh
 
 ### proximos passos

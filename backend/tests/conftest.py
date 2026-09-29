@@ -67,7 +67,7 @@ from sqlalchemy.pool import StaticPool
 # ============================================================================
 # 🧪 Banco de dados SQLite em memória por teste
 # ============================================================================
-@pytest.fixture(scope="function")
+@pytest.fixture
 def engine():
     engine = create_engine(
         "sqlite://",
@@ -80,7 +80,7 @@ def engine():
     engine.dispose()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def db_sessionmaker(engine):
     return sessionmaker(
         bind=engine,
@@ -139,7 +139,7 @@ def _prepare_client_state(
 # ============================================================================
 # 🧪 TestClient
 # ============================================================================
-@pytest.fixture(scope="function")
+@pytest.fixture
 def client(engine, db_sessionmaker, monkeypatch):
     _prepare_client_state(
         engine,
@@ -157,7 +157,7 @@ def client(engine, db_sessionmaker, monkeypatch):
         app.dependency_overrides.clear()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def admin_client(engine, db_sessionmaker, monkeypatch):
     _prepare_client_state(
         engine,

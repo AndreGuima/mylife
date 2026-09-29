@@ -107,14 +107,14 @@
         ### Aplicação
             docker compose run --rm -v "$PWD/backend:/app" -w /app backend python -m black /app/tests/test_expenses.py
     ### prettier check frontend
-        docker run --rm -v "$PWD/frontend:/app" -w /app node:20 bash -lc 'npx prettier --check .'
-        ### fix
-            docker run --rm -v "$PWD/frontend:/app" -w /app node:20 bash -lc 'npx prettier src/pages/Dreams.jsx --write'
+        cd frontend
+        npx prettier --write src/pages/Patrimony.jsx
+        npx prettier --check src/pages/Patrimony.jsx
 
 ### para commitar, no final do dia, testes
     ### Crie testes para essa nova feature que acabamos de realizar:
     ./ver_testes.sh 
-    /home/andre/repo/myquotes/git-final.sh
+    ./quality-check.sh
 
 ### proximos passos
     history e heatmap

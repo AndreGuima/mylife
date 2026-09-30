@@ -6,8 +6,7 @@ export default function InvestmentSummary({
   profitability,
   formatCurrency,
 }) {
-  const valueClassName =
-    "text-[clamp(1.5rem,2.3vw,2rem)] leading-tight font-bold break-all";
+  const valueClassName = "text-2xl font-bold";
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">

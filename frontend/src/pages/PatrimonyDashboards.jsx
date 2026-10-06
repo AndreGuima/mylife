@@ -152,7 +152,7 @@ function buildSeriesFromSnapshots(snapshots) {
   const accountSeries = accountEntries.map((entry, index) => ({
     id: `account:${entry.key}`,
     label: entry.label,
-    color: LINE_COLORS[(index % (LINE_COLORS.length - 1)) + 1],
+    color: LINE_COLORS[index % LINE_COLORS.length],
     strokeWidth: 2,
     values: points.map((point) => {
       const account = point.accounts.find((item) => {
@@ -170,19 +170,7 @@ function buildSeriesFromSnapshots(snapshots) {
     }),
   }));
 
-  return {
-    points,
-    lines: [
-      {
-        id: "total",
-        label: "Montante total",
-        color: LINE_COLORS[0],
-        strokeWidth: 3,
-        values: points.map((point) => point.total),
-      },
-      ...accountSeries,
-    ],
-  };
+  return { points, accountSeries };
 }
 
 function buildAccountPieSlices(accounts) {
@@ -237,7 +225,7 @@ function buildLinePath(points, values, xForIndex, yForValue) {
     .join(" ");
 }
 
-function PatrimonyLineChart({ chart }) {
+function PatrimonyLineChart({ chart, mode }) {
   const { points, lines } = chart;
   const width = 900;
   const height = 320;
@@ -252,6 +240,10 @@ function PatrimonyLineChart({ chart }) {
   const minValue = allValues.length ? Math.min(...allValues) : 0;
   const maxValue = allValues.length ? Math.max(...allValues) : 0;
   const { yMin, yMax, yValues } = computeAxisValues(minValue, maxValue, yTicks);
+  const formatValue = (value) =>
+    mode === "percentage"
+      ? `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`
+      : toMoney(value);
 
   const xForIndex = (index) =>
     margin.left +
@@ -304,7 +296,7 @@ function PatrimonyLineChart({ chart }) {
                 dominantBaseline="middle"
                 className="fill-[var(--muted-text)] text-[11px]"
               >
-                {toMoney(value)}
+                {formatValue(value)}
               </text>
             </g>
           );
@@ -331,10 +323,10 @@ function PatrimonyLineChart({ chart }) {
                     key={`${line.id}-${points[index].dateKey}`}
                     cx={xForIndex(index)}
                     cy={yForValue(value)}
-                    r={line.id === "total" ? 4 : 3}
+                    r={3}
                     fill={line.color}
                   >
-                    <title>{`${line.label} - ${toDateLabel(points[index].dateKey)} - ${toMoney(value)}`}</title>
+                    <title>{`${line.label} - ${toDateLabel(points[index].dateKey)} - ${formatValue(value)}`}</title>
                   </circle>
                 );
               })}
@@ -400,6 +392,8 @@ export default function PatrimonyDashboards() {
   const [accounts, setAccounts] = useState([]);
   const [snapshots, setSnapshots] = useState([]);
   const [periodDays, setPeriodDays] = useState(365);
+  const [selectedAccountIds, setSelectedAccountIds] = useState(null);
+  const [chartMode, setChartMode] = useState("absolute");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -432,16 +426,45 @@ export default function PatrimonyDashboards() {
   }, [periodDays]);
 
   const chart = useMemo(() => buildSeriesFromSnapshots(snapshots), [snapshots]);
-  const totalCurrent = chart.points.length
-    ? chart.points[chart.points.length - 1].total
-    : 0;
+  const defaultAccountIds = useMemo(
+    () =>
+      chart.accountSeries
+        .slice()
+        .sort((a, b) => (b.values.at(-1) ?? 0) - (a.values.at(-1) ?? 0))
+        .slice(0, 5)
+        .map((line) => line.id),
+    [chart.accountSeries],
+  );
+  const selectedIds = selectedAccountIds ?? defaultAccountIds;
+  const selectedLines = chart.accountSeries.filter((line) =>
+    selectedIds.includes(line.id),
+  );
+  const chartLines = selectedLines.map((line) => {
+    if (chartMode === "absolute") return line;
+    const baseline = line.values.find((value) => value != null);
+    return {
+      ...line,
+      values: line.values.map((value) => {
+        if (value == null || baseline == null) return null;
+        if (baseline === 0) return value === 0 ? 100 : null;
+        return (value / baseline) * 100;
+      }),
+    };
+  });
+  const chartPoints = chart.points;
+  const totalCurrent = chartPoints.at(-1)?.total ?? 0;
+  const totalPeriodStart = chartPoints[0]?.total ?? 0;
+  const totalPeriodChange = totalCurrent - totalPeriodStart;
+  const totalPeriodChangePercent =
+    totalPeriodStart === 0
+      ? null
+      : (totalPeriodChange / Math.abs(totalPeriodStart)) * 100;
+  const selectedPeriodLabel =
+    PERIOD_OPTIONS.find((option) => option.days === periodDays)?.label ?? "";
   const comparisonSummary = useMemo(
     () =>
-      buildPatrimonyComparisonSummary(
-        chart.points,
-        chart.points.at(-1)?.dateKey,
-      ),
-    [chart.points],
+      buildPatrimonyComparisonSummary(chartPoints, chartPoints.at(-1)?.dateKey),
+    [chartPoints],
   );
 
   return (
@@ -460,8 +483,17 @@ export default function PatrimonyDashboards() {
         <div className="themed-card themed-border border rounded-xl p-5">
           <h2 className="font-semibold mb-1">Montante Atual</h2>
           <p className="text-2xl font-bold">{toMoney(totalCurrent)}</p>
-          <p className="themed-muted text-sm mt-1">
-            Soma das contas cadastradas
+          <p
+            className={`text-sm mt-1 ${totalPeriodChange >= 0 ? "text-emerald-600" : "text-rose-600"}`}
+          >
+            {totalPeriodChange >= 0 ? "+" : ""}
+            {toMoney(totalPeriodChange)}
+            {totalPeriodChangePercent == null
+              ? ""
+              : ` (${totalPeriodChangePercent >= 0 ? "+" : ""}${totalPeriodChangePercent.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%)`}
+          </p>
+          <p className="themed-muted text-xs mt-1">
+            Variação no período selecionado ({selectedPeriodLabel})
           </p>
         </div>
         <div className="themed-card themed-border border rounded-xl p-5">
@@ -522,11 +554,11 @@ export default function PatrimonyDashboards() {
 
       <div className="themed-card themed-border border rounded-xl p-5">
         <h2 className="text-xl font-semibold mb-2">
-          Montante Geral ao Longo do Tempo
+          Evolução das Contas ao Longo do Tempo
         </h2>
         <p className="themed-muted text-sm mb-4">
-          Evolução do patrimônio total e de cada conta com base nos snapshots
-          salvos nas alterações.
+          Evolução individual das contas com base nos snapshots salvos nas
+          alterações. O patrimônio total e sua variação aparecem acima.
         </p>
         <div className="flex flex-wrap gap-2 mb-4">
           {PERIOD_OPTIONS.map((option) => {
@@ -536,6 +568,7 @@ export default function PatrimonyDashboards() {
                 key={option.label}
                 type="button"
                 onClick={() => setPeriodDays(option.days)}
+                aria-pressed={isActive}
                 className={`px-3 py-1.5 rounded-lg border text-sm transition ${
                   isActive
                     ? "bg-blue-600 text-white border-blue-600"
@@ -548,14 +581,89 @@ export default function PatrimonyDashboards() {
           })}
         </div>
 
+        {!loading && chart.accountSeries.length > 0 && (
+          <div className="mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+              <fieldset>
+                <legend className="text-sm font-medium mb-2">
+                  Contas no gráfico ({selectedLines.length})
+                </legend>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2">
+                  {chart.accountSeries.map((line) => (
+                    <label
+                      key={line.id}
+                      className="flex min-w-0 items-center gap-2 text-sm cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(line.id)}
+                        onChange={(event) => {
+                          const current = new Set(
+                            selectedAccountIds ?? defaultAccountIds,
+                          );
+                          if (event.target.checked) current.add(line.id);
+                          else current.delete(line.id);
+                          setSelectedAccountIds([...current]);
+                        }}
+                        className="accent-blue-600"
+                      />
+                      <span
+                        className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: line.color }}
+                      />
+                      <span className="truncate">{line.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <div
+                className="flex flex-wrap gap-2"
+                role="group"
+                aria-label="Modo de visualização do gráfico"
+              >
+                {[
+                  { id: "absolute", label: "Valor absoluto" },
+                  { id: "percentage", label: "Variação percentual" },
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => setChartMode(mode.id)}
+                    aria-pressed={chartMode === mode.id}
+                    className={`px-3 py-1.5 rounded-lg border text-sm transition ${
+                      chartMode === mode.id
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "themed-card themed-border border hover:opacity-90"
+                    }`}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {chartMode === "percentage" && (
+              <p className="themed-muted text-xs mb-3">
+                Cada conta começa em 100% no primeiro snapshot do período.
+              </p>
+            )}
+          </div>
+        )}
+
         {loading ? (
           <p className="themed-muted">Carregando dados...</p>
         ) : chart.points.length === 0 ? (
           <p className="themed-muted">
             Ainda não há contas cadastradas para gerar o gráfico.
           </p>
+        ) : selectedLines.length === 0 ? (
+          <p className="themed-muted">
+            Selecione ao menos uma conta para exibir a evolução.
+          </p>
         ) : (
-          <PatrimonyLineChart chart={chart} />
+          <PatrimonyLineChart
+            chart={{ points: chartPoints, lines: chartLines }}
+            mode={chartMode}
+          />
         )}
       </div>
 

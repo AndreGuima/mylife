@@ -110,7 +110,7 @@
         cd frontend
         ### Corrige
             npx prettier --write src/pages/Patrimony.jsx
-        ### Verifica
+        ### Verificar
             npx prettier --check src/pages/Patrimony.jsx
 
 ### para commitar, no final do dia, testes

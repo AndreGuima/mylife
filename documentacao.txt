@@ -108,8 +108,10 @@
             docker compose run --rm -v "$PWD/backend:/app" -w /app backend python -m black /app/tests/test_expenses.py
     ### prettier check frontend
         cd frontend
-        npx prettier --write src/pages/Patrimony.jsx
-        npx prettier --check src/pages/Patrimony.jsx
+        ### Corrige
+            npx prettier --write src/pages/Patrimony.jsx
+        ### Verifica
+            npx prettier --check src/pages/Patrimony.jsx
 
 ### para commitar, no final do dia, testes
     ./quality-check.sh

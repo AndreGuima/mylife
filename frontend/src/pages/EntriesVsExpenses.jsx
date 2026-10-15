@@ -31,11 +31,11 @@ function getShortcutPeriod(shortcut) {
 export default function EntriesVsExpenses() {
   const [rows, setRows] = useState([]);
   const [fromDate, setFromDate] = useState(() => {
-    const now = new Date();
-    const early = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
-    return toDateInputValue(early);
+    return getShortcutPeriod("thisMonth").fromDate;
   });
-  const [toDate, setToDate] = useState(() => toDateInputValue(new Date()));
+  const [toDate, setToDate] = useState(() => {
+    return getShortcutPeriod("thisMonth").toDate;
+  });
   const [loading, setLoading] = useState(false);
   const requestId = useRef(0);
 

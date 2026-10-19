@@ -186,4 +186,4 @@ else
 fi
 
 echo ""
-echo "🎉 Pipeline concluído com sucesso!"
+echo "🎉 Quality check concluído com sucesso!"

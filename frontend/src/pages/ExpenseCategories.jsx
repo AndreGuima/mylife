@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import expenseCategoriesService from "../services/expenseCategoriesService";
 import { notify } from "../core/toast";
@@ -6,10 +6,22 @@ import { getApiErrorMessage } from "../core/apiError";
 
 export default function ExpenseCategories() {
   const [categories, setCategories] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [name, setName] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState(null);
+
+  const filteredCategories = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return categories;
+
+    return categories.filter((category) =>
+      String(category.name || "")
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [categories, searchQuery]);
 
   async function loadCategories() {
     try {
@@ -128,12 +140,29 @@ export default function ExpenseCategories() {
           </div>
         </form>
 
+        {categories.length > 0 && (
+          <div className="mt-4">
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar categoria..."
+              aria-label="Buscar categoria"
+              className="themed-input w-full rounded px-3 py-2"
+            />
+          </div>
+        )}
+
         <div className="mt-6">
           {categories.length === 0 ? (
             <p className="themed-muted">Nenhuma categoria cadastrada.</p>
+          ) : filteredCategories.length === 0 ? (
+            <p className="themed-muted">
+              Nenhuma categoria encontrada para a pesquisa.
+            </p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {categories.map((category) => (
+              {filteredCategories.map((category) => (
                 <div
                   key={category.id}
                   className="themed-card themed-border border rounded px-3 py-2 inline-flex items-center gap-3"

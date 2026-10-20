@@ -9,24 +9,32 @@ import { getApiErrorMessage } from "../core/apiError";
 import { useAuth } from "../contexts/useAuth";
 import { isHabitScheduledForDate } from "../utils/habitSchedule";
 
-// ============================
-// 🧠 Ordenação por prioridade
-// ============================
-function sortHabitsByPriority(habits) {
-  return [...habits].sort((a, b) => {
-    const aDone = a.stats?.today_completed ?? false;
-    const bDone = b.stats?.today_completed ?? false;
+function compareHabitsByPriority(a, b) {
+  const aDone = a.stats?.today_completed ?? false;
+  const bDone = b.stats?.today_completed ?? false;
 
-    // 1️⃣ Não feitos hoje primeiro
-    if (aDone !== bDone) {
-      return aDone ? 1 : -1;
+  if (aDone !== bDone) {
+    return aDone ? 1 : -1;
+  }
+
+  const aStreak = a.stats?.current_streak ?? 0;
+  const bStreak = b.stats?.current_streak ?? 0;
+
+  return bStreak - aStreak;
+}
+
+function sortHabitsBySchedule(habits) {
+  return [...habits].sort((a, b) => {
+    const aStartTime = a.start_time?.slice(0, 5) ?? "";
+    const bStartTime = b.start_time?.slice(0, 5) ?? "";
+
+    if (aStartTime !== bStartTime) {
+      if (!aStartTime) return 1;
+      if (!bStartTime) return -1;
+      return aStartTime.localeCompare(bStartTime);
     }
 
-    // 2️⃣ Maior streak primeiro
-    const aStreak = a.stats?.current_streak ?? 0;
-    const bStreak = b.stats?.current_streak ?? 0;
-
-    return bStreak - aStreak;
+    return compareHabitsByPriority(a, b);
   });
 }
 
@@ -127,7 +135,7 @@ export default function Home() {
     }
   }
 
-  const todayHabits = sortHabitsByPriority(habits.filter(isHabitForToday));
+  const todayHabits = sortHabitsBySchedule(habits.filter(isHabitForToday));
   const homeModuleCardClass =
     "mb-6 flex flex-col gap-3 rounded-xl border themed-border themed-card p-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between sm:gap-4";
   const homeModuleButtonClass =

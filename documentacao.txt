@@ -116,5 +116,3 @@
 ### para commitar, no final do dia, testes
     ./quality-check.sh
 
-### proximos passos
-    history e heatmap

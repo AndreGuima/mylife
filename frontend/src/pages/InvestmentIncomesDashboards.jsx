@@ -8,6 +8,11 @@ import { describeArc } from "../utils/charts/pieMath";
 import { localDateTimestamp, localMonthKey } from "../utils/localDate";
 
 const PIE_COLORS = ["#0ea5e9", "#22c55e", "#f59e0b"];
+const INCOME_SERIES = [
+  { key: "dividend", label: "Dividendos", color: "#0ea5e9" },
+  { key: "jcp", label: "JCP", color: "#22c55e" },
+  { key: "rendimento", label: "Rendimentos", color: "#f59e0b" },
+];
 const PERIOD_BUTTON_BASE =
   "themed-border border rounded px-3 py-2 text-sm hover:opacity-90 transition";
 const PERIOD_BUTTON_ACTIVE = "bg-blue-600 text-white border-blue-600";
@@ -39,6 +44,142 @@ function monthTimestamp(key) {
   const [y, m] = String(key).split("-");
   const ts = new Date(Number(y), Number(m) - 1, 1).getTime();
   return Number.isFinite(ts) ? ts : 0;
+}
+
+function IncomeTimelineChart({ items }) {
+  const series = useMemo(() => {
+    const grouped = new Map();
+    items.forEach((item) => {
+      const key = monthKey(item.received_at);
+      if (!key) return;
+      if (!grouped.has(key)) grouped.set(key, {});
+      const type = String(item.income_type || "rendimento");
+      const month = grouped.get(key);
+      month[type] = (month[type] || 0) + Number(item.amount || 0);
+    });
+
+    const rows = [...grouped.entries()]
+      .sort((a, b) => monthTimestamp(a[0]) - monthTimestamp(b[0]))
+      .map(([key, amounts]) => ({ key, label: monthLabel(key), amounts }));
+    return rows;
+  }, [items]);
+
+  if (!series.length) {
+    return <p className="themed-muted text-sm">Sem dados ainda.</p>;
+  }
+
+  const width = 760;
+  const height = 260;
+  const padding = { top: 16, right: 16, bottom: 42, left: 74 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const maxValue = Math.max(
+    1,
+    ...series.flatMap((row) =>
+      INCOME_SERIES.map((type) => row.amounts[type.key] || 0),
+    ),
+  );
+  const x = (index) =>
+    padding.left +
+    (series.length === 1
+      ? chartWidth / 2
+      : (index / (series.length - 1)) * chartWidth);
+  const y = (value) =>
+    padding.top + chartHeight - (value / maxValue) * chartHeight;
+  const tickValues = [0, maxValue / 2, maxValue];
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-x-4 gap-y-2 mb-3 text-xs themed-muted">
+        {INCOME_SERIES.map((type) => (
+          <span key={type.key} className="inline-flex items-center gap-2">
+            <span
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: type.color }}
+            />
+            {type.label}
+          </span>
+        ))}
+      </div>
+      <div className="w-full overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="w-full min-w-[560px]"
+          role="img"
+          aria-label="Evolução mensal dos recebimentos por tipo, em todo o período"
+        >
+          {tickValues.map((value) => {
+            const tickY = y(value);
+            return (
+              <g key={value}>
+                <line
+                  x1={padding.left}
+                  x2={width - padding.right}
+                  y1={tickY}
+                  y2={tickY}
+                  stroke="var(--line-color)"
+                  strokeDasharray="3 4"
+                />
+                <text
+                  x={padding.left - 8}
+                  y={tickY + 4}
+                  textAnchor="end"
+                  className="fill-current themed-muted"
+                  fontSize="10"
+                >
+                  {formatCurrency(value)}
+                </text>
+              </g>
+            );
+          })}
+          {INCOME_SERIES.map((type) => {
+            const points = series
+              .map(
+                (row, index) => `${x(index)},${y(row.amounts[type.key] || 0)}`,
+              )
+              .join(" ");
+            return (
+              <g key={type.key}>
+                <polyline
+                  points={points}
+                  fill="none"
+                  stroke={type.color}
+                  strokeWidth="3"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+                {series.map((row, index) => (
+                  <circle
+                    key={`${type.key}-${row.key}`}
+                    cx={x(index)}
+                    cy={y(row.amounts[type.key] || 0)}
+                    r="3.5"
+                    fill={type.color}
+                  >
+                    <title>{`${row.label} · ${type.label}: ${formatCurrency(row.amounts[type.key] || 0)}`}</title>
+                  </circle>
+                ))}
+              </g>
+            );
+          })}
+          {series.map((row, index) => (
+            <text
+              key={row.key}
+              x={x(index)}
+              y={height - 12}
+              textAnchor="middle"
+              className="fill-current themed-muted"
+              fontSize="10"
+            >
+              {series.length > 12 && index % Math.ceil(series.length / 10) !== 0
+                ? ""
+                : row.label}
+            </text>
+          ))}
+        </svg>
+      </div>
+    </div>
+  );
 }
 
 function buildPieSlices(summary) {
@@ -118,6 +259,8 @@ function AssetTypePieCard({ summary }) {
 
 export default function InvestmentIncomesDashboards() {
   const [items, setItems] = useState([]);
+  const [allTimeItems, setAllTimeItems] = useState([]);
+  const [timelineTicker, setTimelineTicker] = useState("");
   const [investments, setInvestments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [periodFilters, setPeriodFilters] = useState(() =>
@@ -135,14 +278,19 @@ export default function InvestmentIncomesDashboards() {
     async function loadData() {
       setLoading(true);
       try {
-        const [incomesData, investmentsData] = await Promise.all([
-          investmentIncomesService.list({
-            fromDate: periodFilters.fromDate,
-            toDate: periodFilters.toDate,
-          }),
-          investmentsService.list(),
-        ]);
+        const [incomesData, investmentsData, allTimeIncomesData] =
+          await Promise.all([
+            investmentIncomesService.list({
+              fromDate: periodFilters.fromDate,
+              toDate: periodFilters.toDate,
+            }),
+            investmentsService.list(),
+            investmentIncomesService.list(),
+          ]);
         setItems(Array.isArray(incomesData) ? incomesData : []);
+        setAllTimeItems(
+          Array.isArray(allTimeIncomesData) ? allTimeIncomesData : [],
+        );
         setInvestments(Array.isArray(investmentsData) ? investmentsData : []);
       } catch {
         notify.error("Erro ao carregar dashboard de proventos");
@@ -260,6 +408,34 @@ export default function InvestmentIncomesDashboards() {
     )[0];
     return latest?.received_at || null;
   }, [visibleItems]);
+
+  const timelineAssets = useMemo(
+    () =>
+      [
+        ...new Set(
+          allTimeItems
+            .map((item) =>
+              String(item.ticker || "")
+                .trim()
+                .toUpperCase(),
+            )
+            .filter(Boolean),
+        ),
+      ].sort(),
+    [allTimeItems],
+  );
+  const timelineItems = useMemo(
+    () =>
+      timelineTicker
+        ? allTimeItems.filter(
+            (item) =>
+              String(item.ticker || "")
+                .trim()
+                .toUpperCase() === timelineTicker,
+          )
+        : allTimeItems,
+    [allTimeItems, timelineTicker],
+  );
 
   const maxMonthly = Math.max(1, ...monthlySeries.map((item) => item.total));
   const isShortcutActive = (shortcut) => {
@@ -390,6 +566,40 @@ export default function InvestmentIncomesDashboards() {
 
           <div className="mb-4">
             <AssetTypePieCard summary={assetTypeSummary} />
+          </div>
+
+          <div className="themed-card themed-border border rounded-xl p-5 mb-4">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+              <div>
+                <h2 className="font-semibold mb-1">
+                  Evolução dos recebimentos por tipo
+                </h2>
+                <p className="themed-muted text-sm">
+                  Histórico agrupado por mês
+                  {timelineTicker
+                    ? ` para ${timelineTicker}`
+                    : " de todos os ativos"}
+                  .
+                </p>
+              </div>
+              <label className="text-sm">
+                <span className="block themed-muted mb-1">Ativo</span>
+                <select
+                  className="themed-input themed-border border rounded px-3 py-2 min-w-48"
+                  value={timelineTicker}
+                  onChange={(event) => setTimelineTicker(event.target.value)}
+                  aria-label="Selecionar ativo para a evolução dos recebimentos"
+                >
+                  <option value="">Todos os ativos</option>
+                  {timelineAssets.map((ticker) => (
+                    <option key={ticker} value={ticker}>
+                      {ticker}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <IncomeTimelineChart items={timelineItems} />
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

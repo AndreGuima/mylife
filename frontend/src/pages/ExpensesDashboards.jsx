@@ -67,6 +67,8 @@ export default function ExpensesDashboards() {
     toDate: "",
   });
   const [hoveredCategory, setHoveredCategory] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [categoryExpenses, setCategoryExpenses] = useState([]);
 
   const invalidPeriod =
     periodFilters.fromDate &&
@@ -109,6 +111,51 @@ export default function ExpensesDashboards() {
 
     loadSummary();
   }, [invalidPeriod, periodFilters.fromDate, periodFilters.toDate]);
+
+  useEffect(() => {
+    if (!selectedCategory || invalidPeriod) return;
+
+    let isCurrentRequest = true;
+    expensesService
+      .list({
+        fromDate: periodFilters.fromDate,
+        toDate: periodFilters.toDate,
+        categoryId: selectedCategory.id,
+        limit: 500,
+      })
+      .then((data) => {
+        if (isCurrentRequest) {
+          setCategoryExpenses({
+            key: `${selectedCategory.id}:${periodFilters.fromDate}:${periodFilters.toDate}`,
+            items: Array.isArray(data) ? data : [],
+          });
+        }
+      })
+      .catch((err) => {
+        if (isCurrentRequest) {
+          setCategoryExpenses({
+            key: `${selectedCategory.id}:${periodFilters.fromDate}:${periodFilters.toDate}`,
+            items: [],
+          });
+          notify.error(getApiErrorMessage(err, "Erro ao carregar lançamentos"));
+        }
+      });
+
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [
+    invalidPeriod,
+    periodFilters.fromDate,
+    periodFilters.toDate,
+    selectedCategory,
+  ]);
+
+  const categoryRequestKey = selectedCategory
+    ? `${selectedCategory.id}:${periodFilters.fromDate}:${periodFilters.toDate}`
+    : "";
+  const displayedCategoryExpenses =
+    categoryExpenses.key === categoryRequestKey ? categoryExpenses.items : [];
 
   const categoriesSummary = useMemo(() => {
     const items = invalidPeriod ? [] : summary.by_category;
@@ -294,9 +341,89 @@ export default function ExpensesDashboards() {
             setHoveredId={setHoveredCategory}
             ariaLabel="Gráfico de pizza de despesas por categoria"
             countSuffix="lanç."
+            onSelect={(category) =>
+              setSelectedCategory({ id: category.id, name: category.label })
+            }
           />
         )}
       </div>
+
+      {selectedCategory ? (
+        <div className="themed-card themed-border border rounded-xl p-5 mt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 className="font-semibold">
+                Lançamentos: {selectedCategory.name}
+              </h2>
+              <p className="themed-muted text-sm">
+                {periodFilters.fromDate || periodFilters.toDate
+                  ? `Período: ${periodFilters.fromDate || "início"} até ${periodFilters.toDate || "hoje"}`
+                  : "Todos os períodos"}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="themed-border border rounded px-3 py-2 text-sm hover:opacity-90 transition"
+              onClick={() => setSelectedCategory(null)}
+            >
+              Fechar lançamentos
+            </button>
+          </div>
+
+          {invalidPeriod ? (
+            <p className="themed-muted text-sm">
+              Corrija o período para visualizar os lançamentos.
+            </p>
+          ) : categoryExpenses.key !== categoryRequestKey ? (
+            <p className="themed-muted text-sm">Carregando lançamentos...</p>
+          ) : displayedCategoryExpenses.length === 0 ? (
+            <p className="themed-muted text-sm">
+              Nenhum lançamento encontrado para esta categoria no período.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="themed-muted border-b themed-border">
+                    <th className="py-2 pr-4">Data</th>
+                    <th className="py-2 pr-4">Descrição</th>
+                    <th className="py-2 pr-4">Pagamento</th>
+                    <th className="py-2 text-right">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedCategoryExpenses.map((expense) => (
+                    <tr
+                      key={expense.id}
+                      className="border-b themed-border last:border-0"
+                    >
+                      <td className="py-2 pr-4 whitespace-nowrap">
+                        {new Date(
+                          `${expense.launch_date}T00:00:00`,
+                        ).toLocaleDateString("pt-BR")}
+                      </td>
+                      <td className="py-2 pr-4">{expense.description}</td>
+                      <td className="py-2 pr-4">
+                        {expense.payment_method === "credit"
+                          ? "Crédito"
+                          : "Débito"}
+                      </td>
+                      <td className="py-2 text-right whitespace-nowrap">
+                        {formatCurrency(expense.value)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {displayedCategoryExpenses.length === 500 ? (
+                <p className="themed-muted text-xs mt-3">
+                  Exibindo os 500 lançamentos mais recentes.
+                </p>
+              ) : null}
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # ✨ MyLife — Full-Stack Life Manager App
 
-> 📝 Aplicação completa para gerenciamento de habitos feita com **FastAPI + React Native + MySQL + Pytest + Docker + Kubernetes**.  
+> 📝 Aplicação completa para gerenciamento de habitos e controle financeiro feita com **FastAPI + React Native + MySQL + Pytest + Docker + Kubernetes**.  
 > Focada em boas práticas e ambiente moderno de desenvolvimento.
 
 ## Estrutura do projeto
@@ -112,7 +112,6 @@ Para qualquer mudança no projeto:
 cd /home/andre/repo/mylife
 docker compose down
 docker compose up --build -d
-docker ps
+docker compose ps
 ```
 
-Esse é o caminho mais seguro para reconstruir e validar o ambiente inteiro.

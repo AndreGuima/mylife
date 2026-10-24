@@ -12,6 +12,7 @@ export default function PieDonutChart({
   setHoveredId,
   ariaLabel,
   countSuffix,
+  onSelect,
 }) {
   const activeSlice = slices.find((slice) => slice.id === hoveredId) || null;
 
@@ -54,6 +55,20 @@ export default function PieDonutChart({
                   cursor: "pointer",
                 }}
                 tabIndex={0}
+                role={onSelect ? "button" : undefined}
+                aria-label={
+                  onSelect ? `Selecionar categoria ${slice.label}` : undefined
+                }
+                onClick={() => onSelect?.(slice)}
+                onKeyDown={(event) => {
+                  if (
+                    onSelect &&
+                    (event.key === "Enter" || event.key === " ")
+                  ) {
+                    event.preventDefault();
+                    onSelect(slice);
+                  }
+                }}
                 onMouseEnter={() => setHoveredId(slice.id)}
                 onMouseLeave={() => setHoveredId(null)}
                 onFocus={() => setHoveredId(slice.id)}
@@ -132,6 +147,15 @@ export default function PieDonutChart({
               }}
               onMouseEnter={() => setHoveredId(slice.id)}
               onMouseLeave={() => setHoveredId(null)}
+              onClick={() => onSelect?.(slice)}
+              role={onSelect ? "button" : undefined}
+              tabIndex={onSelect ? 0 : undefined}
+              onKeyDown={(event) => {
+                if (onSelect && (event.key === "Enter" || event.key === " ")) {
+                  event.preventDefault();
+                  onSelect(slice);
+                }
+              }}
             >
               <div className="flex items-center gap-2 min-w-0">
                 <span

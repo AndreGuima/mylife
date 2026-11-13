@@ -40,6 +40,7 @@ import BankAccountTransfers from "./pages/BankAccountTransfers.jsx";
 import Expenses from "./pages/Expenses.jsx";
 import ExpenseCategories from "./pages/ExpenseCategories.jsx";
 import ExpensesDashboards from "./pages/ExpensesDashboards.jsx";
+import CreditCardSettings from "./pages/CreditCardSettings.jsx";
 import PayCreditCardInvoice from "./pages/PayCreditCardInvoice.jsx";
 import Investments from "./pages/Investments.jsx";
 import InvestmentsDashboards from "./pages/InvestmentsDashboards.jsx";
@@ -135,6 +136,10 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               <Route
                 path="/finances/expenses/dashboards"
                 element={<ExpensesDashboards />}
+              />
+              <Route
+                path="/finances/expenses/credit-card-settings"
+                element={<CreditCardSettings />}
               />
               <Route path="/finances/investments" element={<Investments />} />
               <Route

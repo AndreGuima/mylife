@@ -54,6 +54,7 @@ from database import Base
 from models.auth_login_attempt import AuthLoginAttempt
 from models.bank_account import BankAccount
 from models.credit_card import CreditCard
+from models.credit_card_spending_limit import CreditCardSpendingLimit
 from models.dream import Dream, DreamHabitLink, DreamMilestone
 from models.expense import Expense
 from models.expense_category import ExpenseCategory

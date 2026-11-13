@@ -1111,6 +1111,16 @@ export default function Expenses() {
                   ? "Atualizar"
                   : "Criar"}
             </button>
+            <Link
+              to={
+                editingCardId
+                  ? `/finances/expenses/credit-card-settings?cardId=${editingCardId}`
+                  : "/finances/expenses/credit-card-settings"
+              }
+              className="themed-card themed-border border px-4 py-2 rounded hover:opacity-90"
+            >
+              Configurar
+            </Link>
             {editingCardId && (
               <button
                 type="button"

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from services.credit_card_cycle import (
     build_planned_anchors,
     compute_cycle,
+    compute_due_date,
     map_day_to_cycle,
     planned_value_at,
 )
@@ -106,7 +107,12 @@ def test_settings_default_and_replace(client: TestClient):
 
     res = client.get(f"/credit-cards/{card_id}/settings")
     assert res.status_code == 200
-    assert res.json() == {"credit_card_id": card_id, "due_day": None, "limits": []}
+    assert res.json() == {
+        "credit_card_id": card_id,
+        "due_day": None,
+        "closing_day": None,
+        "limits": [],
+    }
 
     res = client.put(
         f"/credit-cards/{card_id}/settings",
@@ -226,3 +232,76 @@ def test_deleting_card_removes_limits(client: TestClient, db_session):
     )
     assert client.delete(f"/credit-cards/{card_id}").status_code == 204
     assert db_session.query(CreditCardSpendingLimit).count() == 0
+
+
+def test_compute_due_date_after_closing():
+    # Due day after closing day -> same month.
+    assert compute_due_date(date(2026, 11, 15), 23) == date(2026, 11, 23)
+    # Due day before/equal closing day -> next month.
+    assert compute_due_date(date(2026, 11, 25), 5) == date(2026, 12, 5)
+    assert compute_due_date(date(2026, 11, 15), 15) == date(2026, 12, 15)
+    assert compute_due_date(date(2027, 1, 31), 30) == date(2027, 2, 28)
+
+
+def test_cycle_dashboard_uses_closing_day(client: TestClient):
+    """Closing 15 / due 23: purchases 16/10..15/11 belong to the 23/11 bill."""
+    card_id = _create_card(client)
+    category_id = _create_category(client)
+    res = client.put(
+        f"/credit-cards/{card_id}/settings",
+        json={"due_day": 23, "closing_day": 15, "limits": []},
+    )
+    assert res.status_code == 200
+    assert res.json()["closing_day"] == 15
+    assert client.get("/credit-cards").json()[0]["closing_day"] == 15
+
+    _create_credit_expense(client, card_id, category_id, "10.00", "2026-10-15")
+    _create_credit_expense(client, card_id, category_id, "100.00", "2026-10-16")
+    _create_credit_expense(client, card_id, category_id, "200.00", "2026-10-20")
+    _create_credit_expense(client, card_id, category_id, "300.00", "2026-11-15")
+    _create_credit_expense(client, card_id, category_id, "999.00", "2026-11-16")
+
+    body = client.get(
+        f"/credit-cards/{card_id}/cycle-dashboard",
+        params={"reference_date": "2026-11-14"},
+    ).json()
+    assert body["cycle_start"] == "2026-10-16"
+    assert body["cycle_end"] == "2026-11-15"
+    assert body["due_date"] == "2026-11-23"
+    assert Decimal(body["total_actual"]) == Decimal("600.00")
+    assert body["previous_reference_date"] == "2026-10-15"
+    assert body["next_reference_date"] == "2026-11-16"
+
+    # Navigating to the next cycle.
+    nxt = client.get(
+        f"/credit-cards/{card_id}/cycle-dashboard",
+        params={"reference_date": body["next_reference_date"]},
+    ).json()
+    assert nxt["cycle_start"] == "2026-11-16"
+    assert nxt["cycle_end"] == "2026-12-15"
+    assert nxt["due_date"] == "2026-12-23"
+    assert Decimal(nxt["total_actual"]) == Decimal("999.00")
+
+
+def test_cycle_dashboard_falls_back_to_due_day(client: TestClient):
+    card_id = _create_card(client)
+    client.put(
+        f"/credit-cards/{card_id}/settings",
+        json={"due_day": 10, "closing_day": None, "limits": []},
+    )
+    body = client.get(
+        f"/credit-cards/{card_id}/cycle-dashboard",
+        params={"reference_date": "2026-11-05"},
+    ).json()
+    assert body["cycle_end"] == "2026-11-10"
+    assert body["due_date"] == "2026-11-10"
+
+
+def test_settings_rejects_invalid_closing_day(client: TestClient):
+    card_id = _create_card(client)
+    for bad in (0, 32):
+        res = client.put(
+            f"/credit-cards/{card_id}/settings",
+            json={"due_day": 10, "closing_day": bad, "limits": []},
+        )
+        assert res.status_code == 422

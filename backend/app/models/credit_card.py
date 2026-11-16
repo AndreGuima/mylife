@@ -24,6 +24,10 @@ class CreditCard(Base):
             "due_day IS NULL OR (due_day BETWEEN 1 AND 31)",
             name="ck_credit_cards_due_day_range",
         ),
+        CheckConstraint(
+            "closing_day IS NULL OR (closing_day BETWEEN 1 AND 31)",
+            name="ck_credit_cards_closing_day_range",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -33,6 +37,9 @@ class CreditCard(Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     # Day of the month (1-31) on which the card statement is due.
     due_day: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    # Day of the month (1-31) on which the statement closes. Purchases after
+    # this day go to the next statement.
+    closing_day: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, server_default=func.current_timestamp()
     )

@@ -1,9 +1,13 @@
 """Billing-cycle helpers for the credit card "planned vs. actual" dashboard.
 
-Cycle definition: a card with ``due_day = D`` has cycles that end on the due
-date and start the day after the previous due date. The "current" cycle is
-the one containing the reference date (normally today). When D does not exist
-in a month (e.g. 31 in February) the last day of that month is used.
+Cycle definition: a card with ``closing_day = C`` has cycles that end on the
+closing date and start the day after the previous closing date (purchases
+after closing go to the next statement). The statement is then due on the
+first ``due_day`` after the closing date. If the closing day is not set, the
+due day is used as the cycle boundary (legacy behaviour). The "current" cycle
+is the one containing the reference date (normally today). When a day does
+not exist in a month (e.g. 31 in February) the last day of that month is
+used.
 
 Spending limits are *cumulative* thresholds: "by day X of the month I want to
 have spent at most L on this card in the current cycle". The planned curve is
@@ -32,19 +36,33 @@ def _shift_month(year: int, month: int, delta: int) -> tuple[int, int]:
     return index // 12, index % 12 + 1
 
 
-def compute_cycle(due_day: int, reference: date) -> tuple[date, date]:
-    """Return ``(cycle_start, cycle_end)`` of the cycle containing ``reference``."""
-    if not 1 <= due_day <= 31:
-        raise ValueError("due_day must be between 1 and 31")
+def compute_cycle(boundary_day: int, reference: date) -> tuple[date, date]:
+    """Return ``(cycle_start, cycle_end)`` of the cycle containing ``reference``.
 
-    cycle_end = _clamped_date(reference.year, reference.month, due_day)
+    ``boundary_day`` is the last day of each cycle (the closing day).
+    """
+    if not 1 <= boundary_day <= 31:
+        raise ValueError("boundary_day must be between 1 and 31")
+
+    cycle_end = _clamped_date(reference.year, reference.month, boundary_day)
     if cycle_end < reference:
         year, month = _shift_month(reference.year, reference.month, 1)
-        cycle_end = _clamped_date(year, month, due_day)
+        cycle_end = _clamped_date(year, month, boundary_day)
 
     prev_year, prev_month = _shift_month(cycle_end.year, cycle_end.month, -1)
-    previous_due = _clamped_date(prev_year, prev_month, due_day)
-    return previous_due + timedelta(days=1), cycle_end
+    previous_end = _clamped_date(prev_year, prev_month, boundary_day)
+    return previous_end + timedelta(days=1), cycle_end
+
+
+def compute_due_date(closing_date: date, due_day: int) -> date:
+    """First date with ``due_day`` strictly after ``closing_date``."""
+    if not 1 <= due_day <= 31:
+        raise ValueError("due_day must be between 1 and 31")
+    candidate = _clamped_date(closing_date.year, closing_date.month, due_day)
+    if candidate <= closing_date:
+        year, month = _shift_month(closing_date.year, closing_date.month, 1)
+        candidate = _clamped_date(year, month, due_day)
+    return candidate
 
 
 def map_day_to_cycle(day_of_month: int, start: date, end: date) -> date | None:

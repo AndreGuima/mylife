@@ -81,6 +81,17 @@ export default function Finances() {
             Registre lembretes, ideias e observações financeiras.
           </div>
         </Link>
+
+        <Link
+          to="/finances/expenses/credit-card-settings"
+          className="themed-card themed-border border rounded-xl p-5 text-left hover:shadow-md transition"
+        >
+          <div className="text-lg font-semibold mb-1">Uso do Cartão</div>
+          <div className="themed-muted text-sm">
+            Configure vencimento, fechamento e limites e acompanhe o planejado x
+            realizado.
+          </div>
+        </Link>
       </div>
     </div>
   );

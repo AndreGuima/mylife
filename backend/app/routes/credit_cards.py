@@ -6,7 +6,6 @@ from database import get_db
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from models.credit_card import CreditCard
 from models.credit_card_spending_limit import CreditCardSpendingLimit
-from models.expense import Expense
 from models.user import User
 from schemas.credit_card import (
     CreditCardCreate,
@@ -22,10 +21,13 @@ from services.credit_card_cycle import (
     build_planned_anchors,
     build_timeline,
     compute_cycle,
-    compute_due_date,
     planned_value_at,
 )
-from sqlalchemy import func
+from services.credit_card_cycle_summary import (
+    cycle_due_date,
+    load_daily_totals,
+    load_limits,
+)
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/credit-cards", tags=["Credit Cards"])
@@ -136,15 +138,6 @@ def delete_credit_card(
     return None
 
 
-def _load_limits(db: Session, card_id: int) -> list[CreditCardSpendingLimit]:
-    return (
-        db.query(CreditCardSpendingLimit)
-        .filter(CreditCardSpendingLimit.credit_card_id == card_id)
-        .order_by(CreditCardSpendingLimit.day_of_month.asc())
-        .all()
-    )
-
-
 def _to_settings_response(
     card: CreditCard, limits: list[CreditCardSpendingLimit]
 ) -> CreditCardSettingsRead:
@@ -168,7 +161,7 @@ def get_credit_card_settings(
     user: User = Depends(get_current_user),
 ):
     card = _get_user_card_or_404(db, user.id, card_id)
-    return _to_settings_response(card, _load_limits(db, card.id))
+    return _to_settings_response(card, load_limits(db, card.id))
 
 
 @router.put("/{card_id}/settings", response_model=CreditCardSettingsRead)
@@ -199,7 +192,7 @@ def update_credit_card_settings(
     db.commit()
 
     card = _get_user_card_or_404(db, user.id, card_id)
-    return _to_settings_response(card, _load_limits(db, card.id))
+    return _to_settings_response(card, load_limits(db, card.id))
 
 
 @router.get("/{card_id}/cycle-dashboard", response_model=CreditCardCycleDashboardRead)
@@ -220,29 +213,11 @@ def get_credit_card_cycle_dashboard(
 
     reference = reference_date or date.today()
     cycle_start, cycle_end = compute_cycle(boundary_day, reference)
-    if card.closing_day and card.due_day:
-        due_date = compute_due_date(cycle_end, card.due_day)
-    elif card.closing_day:
-        due_date = None
-    else:
-        due_date = cycle_end
-
-    rows = (
-        db.query(Expense.launch_date, func.sum(Expense.value))
-        .filter(
-            Expense.user_id == user.id,
-            Expense.credit_card_id == card.id,
-            Expense.payment_method == "credit",
-            Expense.launch_date >= cycle_start,
-            Expense.launch_date <= cycle_end,
-        )
-        .group_by(Expense.launch_date)
-        .all()
-    )
-    daily_totals = {launch: Decimal(total or 0) for launch, total in rows}
+    due_date = cycle_due_date(card, cycle_end)
+    daily_totals = load_daily_totals(db, user.id, card.id, cycle_start, cycle_end)
 
     anchors = build_planned_anchors(
-        ((item.day_of_month, item.limit_amount) for item in _load_limits(db, card.id)),
+        ((item.day_of_month, item.limit_amount) for item in load_limits(db, card.id)),
         cycle_start,
         cycle_end,
     )

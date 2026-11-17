@@ -2,6 +2,7 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Daily Digest</title>
   </head>
 
@@ -27,6 +28,8 @@
             cellpadding="0"
             cellspacing="0"
             style="
+              width: 600px;
+              max-width: 100%;
               background-color: #ffffff;
               border-radius: 8px;
               padding: 24px;
@@ -72,6 +75,7 @@
                 <p
                   style="
                     margin-top: 12px;
+                    margin-bottom: 0;
                     text-align: right;
                     font-size: 14px;
                     color: #555555;
@@ -85,7 +89,20 @@
             {% if patrimony_total_label %}
             <!-- Patrimony -->
             <tr>
-              <td style="padding-top: 16px">
+              <td
+                style="
+                  padding-top: 24px;
+                  padding-bottom: 8px;
+                  color: #333333;
+                  font-size: 16px;
+                  font-weight: bold;
+                "
+              >
+                💰 Patrimônio
+              </td>
+            </tr>
+            <tr>
+              <td>
                 <table
                   width="100%"
                   cellpadding="0"
@@ -159,6 +176,148 @@
                 </table>
               </td>
             </tr>
+            {% endif %}
+
+            {% if credit_card_cycles %}
+            <!-- Credit cards -->
+            <tr>
+              <td
+                style="
+                  padding-top: 24px;
+                  padding-bottom: 8px;
+                  color: #333333;
+                  font-size: 16px;
+                  font-weight: bold;
+                "
+              >
+                💳 Cartões de crédito
+              </td>
+            </tr>
+            {% for card in credit_card_cycles %}
+            {% if card.status == "above" %}
+              {% set accent = "#dc2626" %}
+            {% else %}
+              {% set accent = "#16a34a" %}
+            {% endif %}
+            <tr>
+              <td style="padding-bottom: 12px">
+                <table
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  style="
+                    background-color: #f8fafc;
+                    border: 1px solid #e5e7eb;
+                    border-left: 4px solid {{ accent }};
+                    border-radius: 8px;
+                    padding: 16px;
+                  "
+                >
+                  <!-- Card name + cycle -->
+                  <tr>
+                    <td
+                      colspan="2"
+                      style="color: #222222; font-size: 15px; font-weight: bold"
+                    >
+                      {{ card.name }}
+                      <span
+                        style="
+                          color: #888888;
+                          font-size: 12px;
+                          font-weight: normal;
+                        "
+                      >
+                        · ciclo de {{ card.period_label }}
+                      </span>
+                    </td>
+                  </tr>
+
+                  <!-- Situation -->
+                  <tr>
+                    <td
+                      colspan="2"
+                      style="color: #555555; font-size: 14px; padding-top: 12px"
+                    >
+                      Situação até hoje
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                      colspan="2"
+                      style="
+                        color: {{ accent }};
+                        font-size: 24px;
+                        font-weight: bold;
+                        padding-top: 4px;
+                        padding-bottom: 12px;
+                      "
+                    >
+                      {{ card.situation_label }}
+                    </td>
+                  </tr>
+
+                  <!-- Actual vs planned -->
+                  <tr>
+                    <td
+                      width="50%"
+                      style="
+                        padding-top: 12px;
+                        border-top: 1px solid #e5e7eb;
+                        color: #555555;
+                        font-size: 13px;
+                      "
+                    >
+                      Gasto até hoje
+                      <div
+                        style="
+                          color: #222222;
+                          font-size: 16px;
+                          font-weight: bold;
+                          padding-top: 2px;
+                        "
+                      >
+                        {{ card.actual_label }}
+                      </div>
+                    </td>
+                    <td
+                      width="50%"
+                      style="
+                        padding-top: 12px;
+                        border-top: 1px solid #e5e7eb;
+                        color: #555555;
+                        font-size: 13px;
+                      "
+                    >
+                      Planejado até hoje
+                      <div
+                        style="
+                          color: #222222;
+                          font-size: 16px;
+                          font-weight: bold;
+                          padding-top: 2px;
+                        "
+                      >
+                        {{ card.planned_label }}
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Cycle total + due date -->
+                  <tr>
+                    <td
+                      colspan="2"
+                      style="color: #888888; font-size: 12px; padding-top: 10px"
+                    >
+                      Planejado para o ciclo: {{ card.planned_total_label }}
+                      {% if card.due_date_label %}
+                      · vencimento em {{ card.due_date_label }}
+                      {% endif %}
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            {% endfor %}
             {% endif %}
 
             <!-- Spacer -->

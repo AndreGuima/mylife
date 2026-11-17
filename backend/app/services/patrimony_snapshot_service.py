@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+from core.formatting import format_brl
 from models.bank_account import BankAccount
 from models.patrimony_snapshot import PatrimonySnapshot
 from models.patrimony_snapshot_account import PatrimonySnapshotAccount
@@ -72,20 +73,6 @@ def capture_patrimony_snapshot(db: Session, user_id: int) -> None:
             for account in accounts
         ]
     )
-
-
-def _format_brl(value: Decimal) -> str:
-    amount = Decimal(value or ZERO).quantize(Decimal("0.01"))
-    formatted = (
-        f"{abs(amount):,.2f}".replace(",", "X")
-        .replace(".", ",")
-        .replace(
-            "X",
-            ".",
-        )
-    )
-    prefix = "-R$ " if amount < ZERO else "R$ "
-    return f"{prefix}{formatted}"
 
 
 def _previous_month_range(now: datetime) -> tuple[datetime, datetime]:
@@ -202,9 +189,9 @@ def _build_comparison_label(
 
     delta = current_total - previous_total
     if delta > ZERO:
-        return f"Você tem {_format_brl(delta)} a mais {comparison_period}."
+        return f"Você tem {format_brl(delta)} a mais {comparison_period}."
     if delta < ZERO:
-        return f"Você tem {_format_brl(abs(delta))} a menos {comparison_period}."
+        return f"Você tem {format_brl(abs(delta))} a menos {comparison_period}."
     return f"Você está com o mesmo montante {comparison_period}."
 
 
@@ -223,7 +210,7 @@ def build_patrimony_email_context(
     )
 
     return {
-        "patrimony_total_label": _format_brl(current_total),
+        "patrimony_total_label": format_brl(current_total),
         "patrimony_comparison_label": _build_comparison_label(
             current_total,
             previous_total,

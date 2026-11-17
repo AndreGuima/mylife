@@ -13,7 +13,6 @@ Aplicação full-stack com frontend em React/Vite e backend em FastAPI.
 
 ## Requisitos
 
-- Docker
 - Docker Compose
 
 ## Subir o ambiente completo

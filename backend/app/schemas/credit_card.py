@@ -16,6 +16,7 @@ class CreditCardRead(BaseModel):
     id: int
     name: str
     due_day: int | None = None
+    closing_day: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -31,6 +32,7 @@ class CreditCardSpendingLimitItem(BaseModel):
 
 class CreditCardSettingsUpdate(BaseModel):
     due_day: int | None = Field(default=None, ge=1, le=31)
+    closing_day: int | None = Field(default=None, ge=1, le=31)
     limits: list[CreditCardSpendingLimitItem] = Field(default_factory=list)
 
     @field_validator("limits")
@@ -47,6 +49,7 @@ class CreditCardSettingsUpdate(BaseModel):
 class CreditCardSettingsRead(BaseModel):
     credit_card_id: int
     due_day: int | None = None
+    closing_day: int | None = None
     limits: list[CreditCardSpendingLimitItem] = Field(default_factory=list)
 
 
@@ -60,9 +63,13 @@ class CreditCardCycleDayPoint(BaseModel):
 
 class CreditCardCycleDashboardRead(BaseModel):
     credit_card_id: int
-    due_day: int
+    due_day: int | None = None
+    closing_day: int | None = None
     cycle_start: date
     cycle_end: date
+    due_date: date | None = None
+    previous_reference_date: date
+    next_reference_date: date
     reference_date: date
     total_actual: Decimal
     total_planned: Decimal | None = None

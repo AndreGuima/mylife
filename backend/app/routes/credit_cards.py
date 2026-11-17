@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from core.dependencies import get_current_user
@@ -22,6 +22,7 @@ from services.credit_card_cycle import (
     build_planned_anchors,
     build_timeline,
     compute_cycle,
+    compute_due_date,
     planned_value_at,
 )
 from sqlalchemy import func
@@ -35,6 +36,7 @@ def _to_response(card: CreditCard) -> CreditCardRead:
         id=card.id,
         name=card.name,
         due_day=card.due_day,
+        closing_day=card.closing_day,
         created_at=card.created_at,
         updated_at=card.updated_at,
     )
@@ -149,6 +151,7 @@ def _to_settings_response(
     return CreditCardSettingsRead(
         credit_card_id=card.id,
         due_day=card.due_day,
+        closing_day=card.closing_day,
         limits=[
             CreditCardSpendingLimitItem(
                 day_of_month=item.day_of_month, limit_amount=item.limit_amount
@@ -178,6 +181,7 @@ def update_credit_card_settings(
     """Replace the card's due day and its full list of spending limits."""
     card = _get_user_card_or_404(db, user.id, card_id)
     card.due_day = payload.due_day
+    card.closing_day = payload.closing_day
 
     db.query(CreditCardSpendingLimit).filter(
         CreditCardSpendingLimit.credit_card_id == card.id
@@ -206,14 +210,22 @@ def get_credit_card_cycle_dashboard(
     user: User = Depends(get_current_user),
 ):
     card = _get_user_card_or_404(db, user.id, card_id)
-    if card.due_day is None:
+    # The cycle ends on the closing day; without it, fall back to the due day.
+    boundary_day = card.closing_day or card.due_day
+    if boundary_day is None:
         raise HTTPException(
             status_code=400,
-            detail="Defina o dia de vencimento do cartão para ver o ciclo",
+            detail="Defina o dia de fechamento do cartão para ver o ciclo",
         )
 
     reference = reference_date or date.today()
-    cycle_start, cycle_end = compute_cycle(card.due_day, reference)
+    cycle_start, cycle_end = compute_cycle(boundary_day, reference)
+    if card.closing_day and card.due_day:
+        due_date = compute_due_date(cycle_end, card.due_day)
+    elif card.closing_day:
+        due_date = None
+    else:
+        due_date = cycle_end
 
     rows = (
         db.query(Expense.launch_date, func.sum(Expense.value))
@@ -240,8 +252,12 @@ def get_credit_card_cycle_dashboard(
     return CreditCardCycleDashboardRead(
         credit_card_id=card.id,
         due_day=card.due_day,
+        closing_day=card.closing_day,
         cycle_start=cycle_start,
         cycle_end=cycle_end,
+        due_date=due_date,
+        previous_reference_date=cycle_start - timedelta(days=1),
+        next_reference_date=cycle_end + timedelta(days=1),
         reference_date=reference,
         total_actual=timeline[-1].actual_cumulative if timeline else Decimal("0"),
         total_planned=planned_value_at(anchors, cycle_start, cycle_end),

@@ -14,6 +14,13 @@ function formatCurrency(value) {
   });
 }
 
+function formatInputDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function formatDate(isoDate) {
   if (!isoDate) return "";
   const [year, month, day] = isoDate.split("-");
@@ -35,8 +42,9 @@ export default function CreditCardSettings() {
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dueDay, setDueDay] = useState("");
+  const [closingDay, setClosingDay] = useState("");
   const [rows, setRows] = useState([]);
-  const [savedDueDay, setSavedDueDay] = useState(null);
+  const [savedBoundaryDay, setSavedBoundaryDay] = useState(null);
   const [dashboard, setDashboard] = useState(null);
   const [loadingDashboard, setLoadingDashboard] = useState(false);
 
@@ -58,10 +66,15 @@ export default function CreditCardSettings() {
     };
   }, []);
 
-  const loadDashboard = useCallback(async (cardId) => {
+  const loadDashboard = useCallback(async (cardId, referenceDate) => {
     setLoadingDashboard(true);
     try {
-      setDashboard(await creditCardsService.getCycleDashboard(cardId));
+      setDashboard(
+        await creditCardsService.getCycleDashboard(
+          cardId,
+          referenceDate ? { reference_date: referenceDate } : {},
+        ),
+      );
     } catch (err) {
       setDashboard(null);
       notify.error(getApiErrorMessage(err, "Erro ao carregar o ciclo"));
@@ -74,8 +87,9 @@ export default function CreditCardSettings() {
     setDashboard(null);
     if (!selectedCardId) {
       setDueDay("");
+      setClosingDay("");
       setRows([]);
-      setSavedDueDay(null);
+      setSavedBoundaryDay(null);
       return undefined;
     }
 
@@ -86,13 +100,15 @@ export default function CreditCardSettings() {
       .then((settings) => {
         if (!active) return;
         setDueDay(settings.due_day ? String(settings.due_day) : "");
-        setSavedDueDay(settings.due_day);
+        setClosingDay(settings.closing_day ? String(settings.closing_day) : "");
+        setSavedBoundaryDay(settings.closing_day || settings.due_day);
         setRows(
           settings.limits.map((item) =>
             newRow(item.day_of_month, Number(item.limit_amount)),
           ),
         );
-        if (settings.due_day) loadDashboard(selectedCardId);
+        if (settings.closing_day || settings.due_day)
+          loadDashboard(selectedCardId);
       })
       .catch((err) =>
         notify.error(getApiErrorMessage(err, "Erro ao carregar configuração")),
@@ -138,10 +154,10 @@ export default function CreditCardSettings() {
       )
     )
       return "Informe valores de limite válidos (maiores ou iguais a zero).";
-    if (rows.length > 0 && !dueDay)
-      return "Defina o dia de vencimento para usar os limites.";
+    if (rows.length > 0 && !closingDay && !dueDay)
+      return "Defina o dia de fechamento para usar os limites.";
     return null;
-  }, [rows, dueDay]);
+  }, [rows, dueDay, closingDay]);
 
   const handleSave = async () => {
     if (!selectedCardId || validationError) return;
@@ -149,12 +165,14 @@ export default function CreditCardSettings() {
     try {
       const saved = await creditCardsService.updateSettings(selectedCardId, {
         due_day: dueDay ? Number(dueDay) : null,
+        closing_day: closingDay ? Number(closingDay) : null,
         limits: rows.map((row) => ({
           day_of_month: Number(row.day),
           limit_amount: Number(row.amount).toFixed(2),
         })),
       });
-      setSavedDueDay(saved.due_day);
+      const boundaryDay = saved.closing_day || saved.due_day;
+      setSavedBoundaryDay(boundaryDay);
       setRows(
         saved.limits.map((item) =>
           newRow(item.day_of_month, Number(item.limit_amount)),
@@ -163,12 +181,16 @@ export default function CreditCardSettings() {
       setCards((prev) =>
         prev.map((card) =>
           String(card.id) === selectedCardId
-            ? { ...card, due_day: saved.due_day }
+            ? {
+                ...card,
+                due_day: saved.due_day,
+                closing_day: saved.closing_day,
+              }
             : card,
         ),
       );
       notify.success("Configuração salva");
-      if (saved.due_day) {
+      if (boundaryDay) {
         await loadDashboard(selectedCardId);
       } else {
         setDashboard(null);
@@ -194,15 +216,23 @@ export default function CreditCardSettings() {
   );
 
   const hasPlanned = dashboard?.total_planned != null;
+  const today = formatInputDate(new Date());
+  const isCurrentCycle = Boolean(
+    dashboard && dashboard.cycle_start <= today && today <= dashboard.cycle_end,
+  );
+  // Current cycle: compare up to today. Past/future cycles: whole cycle.
   const actualToDate = useMemo(() => {
     if (!dashboard) return 0;
-    const ref = dashboard.reference_date;
-    const upToToday = chartPoints.filter((p) => p.date <= ref);
+    if (!isCurrentCycle) return Number(dashboard.total_actual);
+    const upToToday = chartPoints.filter((p) => p.date <= today);
     return upToToday.length ? upToToday[upToToday.length - 1].actual : 0;
-  }, [dashboard, chartPoints]);
-  const deltaToDate = hasPlanned
-    ? Number(dashboard.planned_to_date) - actualToDate
+  }, [dashboard, chartPoints, isCurrentCycle, today]);
+  const plannedToDate = hasPlanned
+    ? Number(
+        isCurrentCycle ? dashboard.planned_to_date : dashboard.total_planned,
+      )
     : null;
+  const deltaToDate = hasPlanned ? plannedToDate - actualToDate : null;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -218,7 +248,7 @@ export default function CreditCardSettings() {
 
       <div className="themed-card themed-border border rounded-xl p-5 mb-6">
         <h2 className="text-xl font-semibold mb-4">Cartão</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <label className="flex flex-col gap-1">
             <span className="text-sm themed-muted">Cartão de crédito</span>
             <select
@@ -256,7 +286,32 @@ export default function CreditCardSettings() {
               ))}
             </select>
           </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-sm themed-muted">
+              Dia de fechamento da fatura
+            </span>
+            <select
+              className="themed-input rounded px-3 py-2"
+              value={closingDay}
+              disabled={!selectedCardId || loadingSettings}
+              onChange={(event) => setClosingDay(event.target.value)}
+            >
+              <option value="">Não definido</option>
+              {DAYS.map((day) => (
+                <option key={day} value={day}>
+                  Dia {day}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
+        {selectedCardId && !loadingSettings && !closingDay && dueDay && (
+          <p className="themed-muted text-sm mt-3">
+            Sem o dia de fechamento, o ciclo é calculado até o vencimento e pode
+            não bater com a fatura real.
+          </p>
+        )}
         {!loadingCards && cards.length === 0 && (
           <p className="themed-muted mt-3">
             Nenhum cartão cadastrado. Crie um na tela de lançamentos.
@@ -360,13 +415,48 @@ export default function CreditCardSettings() {
 
       {selectedCardId && !loadingSettings && (
         <div className="themed-card themed-border border rounded-xl p-5">
-          <h2 className="text-xl font-semibold mb-1">
-            Planejado x Realizado — ciclo atual
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+            <h2 className="text-xl font-semibold">Planejado x Realizado</h2>
+            {dashboard && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={loadingDashboard}
+                  onClick={() =>
+                    loadDashboard(
+                      selectedCardId,
+                      dashboard.previous_reference_date,
+                    )
+                  }
+                  className="themed-card themed-border border px-3 py-1 rounded hover:opacity-90 disabled:opacity-50"
+                >
+                  ‹ Ciclo anterior
+                </button>
+                <button
+                  type="button"
+                  disabled={loadingDashboard || isCurrentCycle}
+                  onClick={() => loadDashboard(selectedCardId)}
+                  className="themed-card themed-border border px-3 py-1 rounded hover:opacity-90 disabled:opacity-50"
+                >
+                  Atual
+                </button>
+                <button
+                  type="button"
+                  disabled={loadingDashboard}
+                  onClick={() =>
+                    loadDashboard(selectedCardId, dashboard.next_reference_date)
+                  }
+                  className="themed-card themed-border border px-3 py-1 rounded hover:opacity-90 disabled:opacity-50"
+                >
+                  Próximo ciclo ›
+                </button>
+              </div>
+            )}
+          </div>
 
-          {!savedDueDay ? (
+          {!savedBoundaryDay ? (
             <p className="themed-muted">
-              Defina e salve o dia de vencimento para acompanhar o ciclo da
+              Defina e salve o dia de fechamento para acompanhar o ciclo da
               fatura.
             </p>
           ) : loadingDashboard && !dashboard ? (
@@ -374,9 +464,11 @@ export default function CreditCardSettings() {
           ) : dashboard ? (
             <>
               <p className="themed-muted text-sm mb-4">
-                Ciclo de {formatDate(dashboard.cycle_start)} a{" "}
-                {formatDate(dashboard.cycle_end)} (vencimento em{" "}
-                {formatDate(dashboard.cycle_end)})
+                {isCurrentCycle ? "Ciclo atual" : "Ciclo"}: compras de{" "}
+                {formatDate(dashboard.cycle_start)} a{" "}
+                {formatDate(dashboard.cycle_end)}
+                {dashboard.due_date &&
+                  ` · vencimento em ${formatDate(dashboard.due_date)}`}
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -387,11 +479,13 @@ export default function CreditCardSettings() {
                   </p>
                 </div>
                 <div className="themed-border border rounded-lg p-4">
-                  <p className="text-sm themed-muted">Planejado até hoje</p>
+                  <p className="text-sm themed-muted">
+                    {isCurrentCycle
+                      ? "Planejado até hoje"
+                      : "Planejado no ciclo"}
+                  </p>
                   <p className="text-2xl font-bold">
-                    {hasPlanned
-                      ? formatCurrency(dashboard.planned_to_date)
-                      : "—"}
+                    {hasPlanned ? formatCurrency(plannedToDate) : "—"}
                   </p>
                   {hasPlanned && (
                     <p className="text-sm themed-muted">
@@ -400,7 +494,9 @@ export default function CreditCardSettings() {
                   )}
                 </div>
                 <div className="themed-border border rounded-lg p-4">
-                  <p className="text-sm themed-muted">Situação até hoje</p>
+                  <p className="text-sm themed-muted">
+                    {isCurrentCycle ? "Situação até hoje" : "Situação no ciclo"}
+                  </p>
                   {deltaToDate == null ? (
                     <p className="text-2xl font-bold">—</p>
                   ) : (
@@ -425,7 +521,7 @@ export default function CreditCardSettings() {
 
               <PlannedVsActualChart
                 points={chartPoints}
-                referenceDate={dashboard.reference_date}
+                referenceDate={isCurrentCycle ? today : null}
                 formatValue={formatCurrency}
               />
             </>

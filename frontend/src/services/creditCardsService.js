@@ -25,8 +25,8 @@ const creditCardsService = {
     return api.put(`/credit-cards/${id}/settings`, payload);
   },
 
-  getCycleDashboard(id) {
-    return api.get(`/credit-cards/${id}/cycle-dashboard`);
+  getCycleDashboard(id, params = {}) {
+    return api.get(`/credit-cards/${id}/cycle-dashboard`, { params });
   },
 };
 

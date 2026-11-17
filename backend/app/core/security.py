@@ -44,6 +44,7 @@ def create_access_token(data: dict) -> str:
     Create JWT access token.
     """
     payload = data.copy()
+    payload["type"] = "access"
     payload["exp"] = datetime.now(timezone.utc) + timedelta(
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES
     )

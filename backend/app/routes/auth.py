@@ -20,6 +20,8 @@ from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
+INVALID_CREDENTIALS = "Email ou senha inválidos"
+
 
 @router.post("/login")
 def login(payload: UserLogin, request: Request, db: Session = Depends(get_db)):
@@ -37,12 +39,7 @@ def login(payload: UserLogin, request: Request, db: Session = Depends(get_db)):
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Muitas tentativas. Tente novamente mais tarde.",
             )
-        raise HTTPException(status_code=401, detail="Usuário não encontrado")
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=403, detail="Usuário desativado. Contate o administrador."
-        )
+        raise HTTPException(status_code=401, detail=INVALID_CREDENTIALS)
 
     if not verify_password(payload.password, user.password_hash):
         locked = register_failed_login(db, email, client_ip)
@@ -51,7 +48,12 @@ def login(payload: UserLogin, request: Request, db: Session = Depends(get_db)):
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Muitas tentativas. Tente novamente mais tarde.",
             )
-        raise HTTPException(status_code=401, detail="Senha incorreta")
+        raise HTTPException(status_code=401, detail=INVALID_CREDENTIALS)
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=403, detail="Usuário desativado. Contate o administrador."
+        )
 
     if not user.is_verified and user.role != "admin":
         raise HTTPException(

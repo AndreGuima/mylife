@@ -14,7 +14,6 @@
 
 ## Requisitos
 
-- Docker
 - Docker Compose
 
 ## Subir o ambiente completo

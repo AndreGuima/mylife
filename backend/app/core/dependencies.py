@@ -18,13 +18,18 @@ def get_current_user(
     if not payload:
         raise HTTPException(status_code=401, detail="Token inválido ou expirado")
 
+    # Tokens sem "type" são aceitos por compatibilidade com tokens antigos;
+    # tokens de outro propósito (ex.: verificação de e-mail) são rejeitados.
+    if payload.get("type", "access") != "access":
+        raise HTTPException(status_code=401, detail="Token inválido ou expirado")
+
     user_id = payload.get("sub")
-    if not user_id:
+    if not user_id or not str(user_id).isdigit():
         raise HTTPException(status_code=401, detail="Token inválido: sub ausente")
 
     user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="Token inválido ou expirado")
 
     return user
 

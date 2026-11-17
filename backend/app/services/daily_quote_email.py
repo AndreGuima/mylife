@@ -6,6 +6,7 @@ from core.email import send_html_email
 from database import SessionLocal
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from models.user import User
+from services.credit_card_cycle_summary import build_credit_card_email_context
 from services.daily_quote_lock import try_acquire_daily_email_lock
 from services.patrimony_snapshot_service import build_patrimony_email_context
 from services.quote_of_the_day import get_quote_of_the_day_for_user
@@ -179,6 +180,7 @@ def _process_user(
         author=quote.author,
         username=user.username,
         **build_patrimony_email_context(db, user.id, now),
+        **build_credit_card_email_context(db, user.id, now.date()),
     )
 
     # 📨 Envio

@@ -52,6 +52,9 @@ const LINE_COLORS = [
   "#84cc16",
 ];
 
+const ALL_SERIES_ID = "__all__";
+const ALL_SERIES_COLOR = "#ec4899";
+
 const PIE_COLORS = [
   "#0ea5e9",
   "#22c55e",
@@ -170,7 +173,15 @@ function buildSeriesFromSnapshots(snapshots) {
     }),
   }));
 
-  return { points, accountSeries };
+  const totalSeries = {
+    id: ALL_SERIES_ID,
+    label: "Tudo",
+    color: ALL_SERIES_COLOR,
+    strokeWidth: 3,
+    values: points.map((point) => point.total),
+  };
+
+  return { points, accountSeries, totalSeries };
 }
 
 function buildAccountPieSlices(accounts) {
@@ -426,17 +437,12 @@ export default function PatrimonyDashboards() {
   }, [periodDays]);
 
   const chart = useMemo(() => buildSeriesFromSnapshots(snapshots), [snapshots]);
-  const defaultAccountIds = useMemo(
-    () =>
-      chart.accountSeries
-        .slice()
-        .sort((a, b) => (b.values.at(-1) ?? 0) - (a.values.at(-1) ?? 0))
-        .slice(0, 5)
-        .map((line) => line.id),
-    [chart.accountSeries],
+  const selectableSeries = useMemo(
+    () => [chart.totalSeries, ...chart.accountSeries],
+    [chart.totalSeries, chart.accountSeries],
   );
-  const selectedIds = selectedAccountIds ?? defaultAccountIds;
-  const selectedLines = chart.accountSeries.filter((line) =>
+  const selectedIds = selectedAccountIds ?? [ALL_SERIES_ID];
+  const selectedLines = selectableSeries.filter((line) =>
     selectedIds.includes(line.id),
   );
   const chartLines = selectedLines.map((line) => {
@@ -589,7 +595,7 @@ export default function PatrimonyDashboards() {
                   Contas no gráfico ({selectedLines.length})
                 </legend>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2">
-                  {chart.accountSeries.map((line) => (
+                  {selectableSeries.map((line) => (
                     <label
                       key={line.id}
                       className="flex min-w-0 items-center gap-2 text-sm cursor-pointer"
@@ -598,9 +604,7 @@ export default function PatrimonyDashboards() {
                         type="checkbox"
                         checked={selectedIds.includes(line.id)}
                         onChange={(event) => {
-                          const current = new Set(
-                            selectedAccountIds ?? defaultAccountIds,
-                          );
+                          const current = new Set(selectedIds);
                           if (event.target.checked) current.add(line.id);
                           else current.delete(line.id);
                           setSelectedAccountIds([...current]);
@@ -611,7 +615,13 @@ export default function PatrimonyDashboards() {
                         className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
                         style={{ backgroundColor: line.color }}
                       />
-                      <span className="truncate">{line.label}</span>
+                      <span
+                        className={`truncate ${
+                          line.id === ALL_SERIES_ID ? "font-semibold" : ""
+                        }`}
+                      >
+                        {line.label}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -643,7 +653,7 @@ export default function PatrimonyDashboards() {
             </div>
             {chartMode === "percentage" && (
               <p className="themed-muted text-xs mb-3">
-                Cada conta começa em 100% no primeiro snapshot do período.
+                Cada série começa em 100% no primeiro snapshot do período.
               </p>
             )}
           </div>

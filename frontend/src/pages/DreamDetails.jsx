@@ -160,10 +160,10 @@ export default function DreamDetails() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Detalhes do Sonho</h1>
         <Link
-          to="/dreams"
+          to="/dreams/goals"
           className="themed-card themed-border border px-3 py-2 rounded hover:opacity-90 transition"
         >
-          Voltar para Sonhos
+          Voltar para Objetivos
         </Link>
       </div>
 

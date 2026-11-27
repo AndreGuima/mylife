@@ -216,7 +216,7 @@ export default function Patrimony() {
         </div>
 
         <Link
-          to="/dreams"
+          to="/dreams/goals"
           className="themed-card themed-border border rounded-xl p-5 hover:shadow-md transition block"
         >
           <h2 className="font-semibold mb-1">Objetivos Disponíveis</h2>

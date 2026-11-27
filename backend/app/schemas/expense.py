@@ -40,6 +40,27 @@ class ExpenseCreate(BaseModel):
         return self
 
 
+MAX_INSTALLMENTS = 48
+
+
+class ExpenseInstallmentsCreate(BaseModel):
+    """Compra parcelada no crédito: ``value`` é o valor de CADA parcela."""
+
+    value: Decimal = Field(gt=0, decimal_places=2)
+    description: str = Field(min_length=1, max_length=255)
+    expense_category_id: int
+    credit_card_id: int
+    launch_date: date
+    installments: int = Field(ge=2, le=MAX_INSTALLMENTS)
+
+    @model_validator(mode="after")
+    def validate_description_fits_suffix(self):
+        suffix = f" {self.installments}/{self.installments}"
+        if len(self.description.strip()) + len(suffix) > 255:
+            raise ValueError("description too long to add installment suffix")
+        return self
+
+
 class ExpenseUpdate(BaseModel):
     value: Decimal | None = Field(default=None, decimal_places=2)
     description: str | None = Field(default=None, min_length=1, max_length=255)

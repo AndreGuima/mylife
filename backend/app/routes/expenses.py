@@ -13,6 +13,7 @@ from models.expense_category import ExpenseCategory
 from models.user import User
 from schemas.expense import (
     ExpenseCreate,
+    ExpenseInstallmentsCreate,
     ExpenseRead,
     ExpenseSummaryCategoryRead,
     ExpenseSummaryRead,
@@ -21,6 +22,7 @@ from schemas.expense import (
     PayCreditInvoiceResponse,
 )
 from services.bank_account_ledger import apply_account_delta, to_money_decimal
+from services.credit_card_cycle import installment_launch_dates
 from services.dream_financial_progress import sync_dream_milestone_financial_progress
 from services.idempotency import begin_idempotent_request, finalize_idempotent_request
 from services.patrimony_snapshot_service import capture_patrimony_snapshot
@@ -423,6 +425,80 @@ def create_expense(
     db.commit()
     if record is not None:
         return JSONResponse(status_code=201, content=response.model_dump(mode="json"))
+    return response
+
+
+@router.post(
+    "/installments",
+    status_code=status.HTTP_201_CREATED,
+    response_model=list[ExpenseRead],
+)
+def create_installment_expenses(
+    payload: ExpenseInstallmentsCreate,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Lança uma compra parcelada no crédito como N despesas, uma por fatura.
+
+    Cada parcela recebe a descrição com sufixo ``k/N`` e a data deslocada mês a
+    mês, ajustada ao ciclo do cartão para cair na fatura seguinte.
+    """
+    record, replay_response = begin_idempotent_request(
+        db,
+        user_id=user.id,
+        route_key="expenses.create_installments",
+        idempotency_key=idempotency_key,
+        payload=payload.model_dump(mode="json"),
+    )
+    if replay_response is not None:
+        return replay_response
+
+    description = payload.description.strip()
+    if not description:
+        raise HTTPException(status_code=400, detail="Descrição é obrigatória")
+
+    with transaction_scope(db):
+        _validate_category_belongs_to_user(db, user.id, payload.expense_category_id)
+        card = _get_user_card_or_400(db, user.id, payload.credit_card_id)
+
+        launch_dates = installment_launch_dates(
+            payload.launch_date,
+            payload.installments,
+            card.closing_day or card.due_day,
+        )
+        created_ids: list[int] = []
+        for index, launch_date in enumerate(launch_dates, start=1):
+            expense = Expense(
+                user_id=user.id,
+                value=payload.value,
+                description=f"{description} {index}/{payload.installments}",
+                expense_category_id=payload.expense_category_id,
+                payment_method="credit",
+                bank_account_id=None,
+                credit_card_id=card.id,
+                launch_date=launch_date,
+            )
+            db.add(expense)
+            db.flush()
+            created_ids.append(expense.id)
+    db.expire_all()
+
+    response = [
+        _to_response(_get_user_expense_or_404(db, user.id, expense_id))
+        for expense_id in created_ids
+    ]
+    response_body = [item.model_dump(mode="json") for item in response]
+    with transaction_scope(db):
+        finalize_idempotent_request(
+            db,
+            record=record,
+            response_body=response_body,
+            status_code=201,
+        )
+    db.commit()
+    if record is not None:
+        return JSONResponse(status_code=201, content=response_body)
     return response
 
 

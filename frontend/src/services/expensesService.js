@@ -32,6 +32,10 @@ const expensesService = {
     return api.post("/expenses", payload);
   },
 
+  createInstallments(payload) {
+    return api.post("/expenses/installments", payload);
+  },
+
   update(id, payload) {
     return api.patch(`/expenses/${id}`, payload);
   },

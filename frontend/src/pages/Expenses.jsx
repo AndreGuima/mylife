@@ -57,6 +57,24 @@ function normalizeDescription(value) {
     .toLowerCase();
 }
 
+const MAX_INSTALLMENTS = 48;
+
+function getInstallmentPreview(form) {
+  const installments = Number(form.installments) || 1;
+  if (form.paymentMethod !== "credit" || installments < 2) {
+    return null;
+  }
+  const value = parseCurrencyInput(form.value);
+  const description = form.description.trim() || "Despesa";
+  return {
+    installments,
+    total: Number.isFinite(value) ? value * installments : 0,
+    value: Number.isFinite(value) ? value : 0,
+    first: `${description} 1/${installments}`,
+    last: `${description} ${installments}/${installments}`,
+  };
+}
+
 function getInitialForm() {
   const now = new Date();
   return {
@@ -67,6 +85,7 @@ function getInitialForm() {
     accountId: "",
     cardId: "",
     launchDate: toDateInputValue(now),
+    installments: "1",
     createdAtPreview: toDateTimeLocalValue(now),
   };
 }
@@ -93,6 +112,9 @@ export default function Expenses() {
   const [categoryNameInput, setCategoryNameInput] = useState("");
 
   const [form, setForm] = useState(getInitialForm);
+  const installmentPreview = editingExpenseId
+    ? null
+    : getInstallmentPreview(form);
   const [autoCategoryDisabled, setAutoCategoryDisabled] = useState(false);
   const [expensesPage, setExpensesPage] = useState(1);
   const [launchFilters, setLaunchFilters] = useState({
@@ -427,6 +449,21 @@ export default function Expenses() {
       launch_date: form.launchDate,
     };
 
+    const installments = Number(form.installments) || 1;
+    const isInstallment =
+      !editingExpenseId && paymentMethod === "credit" && installments > 1;
+
+    if (isInstallment) {
+      if (value <= 0) {
+        notify.error("O valor da parcela precisa ser positivo");
+        return;
+      }
+      if (installments > MAX_INSTALLMENTS) {
+        notify.error(`Máximo de ${MAX_INSTALLMENTS} parcelas`);
+        return;
+      }
+    }
+
     setSavingExpense(true);
     try {
       if (editingExpenseId) {
@@ -435,6 +472,18 @@ export default function Expenses() {
           prev.map((item) => (item.id === editingExpenseId ? updated : item)),
         );
         notify.success("Despesa atualizada");
+      } else if (isInstallment) {
+        const created = await expensesService.createInstallments({
+          value,
+          description,
+          expense_category_id: categoryId,
+          credit_card_id: Number(form.cardId),
+          launch_date: form.launchDate,
+          installments,
+        });
+        setExpenses((prev) => [...created, ...prev]);
+        setExpensesPage(1);
+        notify.success(`Compra lançada em ${installments} parcelas`);
       } else {
         const created = await expensesService.create(payload);
         setExpenses((prev) => [created, ...prev]);
@@ -461,6 +510,7 @@ export default function Expenses() {
       accountId: expense.bank_account_id ? String(expense.bank_account_id) : "",
       cardId: expense.credit_card_id ? String(expense.credit_card_id) : "",
       launchDate: expense.launch_date || "",
+      installments: "1",
       createdAtPreview: expense.created_at
         ? toDateTimeLocalValue(new Date(expense.created_at))
         : "",
@@ -489,6 +539,7 @@ export default function Expenses() {
       paymentMethod: method,
       accountId: method === "debit" ? prev.accountId : "",
       cardId: method === "credit" ? lastCreditCardId || prev.cardId : "",
+      installments: method === "credit" ? prev.installments : "1",
     }));
   }
 
@@ -801,6 +852,32 @@ export default function Expenses() {
             }
           />
 
+          {form.paymentMethod === "credit" && !editingExpenseId && (
+            <label className="flex items-center gap-2">
+              <span className="themed-muted text-sm whitespace-nowrap">
+                Parcelas
+              </span>
+              <select
+                className="themed-input rounded px-3 py-2 w-full"
+                value={form.installments}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    installments: e.target.value,
+                  }))
+                }
+              >
+                {Array.from({ length: MAX_INSTALLMENTS }, (_, i) => i + 1).map(
+                  (n) => (
+                    <option key={n} value={n}>
+                      {n === 1 ? "À vista (1x)" : `${n}x`}
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+          )}
+
           <input
             type="datetime-local"
             className="themed-input rounded px-3 py-2"
@@ -808,6 +885,20 @@ export default function Expenses() {
             readOnly
             disabled
           />
+
+          {installmentPreview && (
+            <div className="md:col-span-2 rounded-lg bg-blue-50 text-blue-900 p-3 text-sm">
+              <strong>
+                {installmentPreview.installments}x de{" "}
+                {formatCurrency(installmentPreview.value)}
+              </strong>{" "}
+              (total {formatCurrency(installmentPreview.total)}). Uma parcela
+              por fatura, a partir da data do lançamento: &quot;
+              {installmentPreview.first}&quot; até &quot;
+              {installmentPreview.last}&quot;. Informe no campo Valor o valor de
+              cada parcela.
+            </div>
+          )}
 
           <div className="flex gap-2 md:col-span-2">
             <button
@@ -819,7 +910,9 @@ export default function Expenses() {
                 ? "Salvando..."
                 : editingExpenseId
                   ? "Atualizar"
-                  : "Lançar despesa"}
+                  : installmentPreview
+                    ? `Lançar ${installmentPreview.installments} parcelas`
+                    : "Lançar despesa"}
             </button>
             <button
               type="button"

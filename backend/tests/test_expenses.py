@@ -637,3 +637,113 @@ def test_pay_credit_invoice_rejects_already_paid_item(client: TestClient):
     assert (
         second_pay.json()["detail"] == "Existe despesa já vinculada a uma fatura paga"
     )
+
+
+def test_create_installment_expenses_splits_into_future_invoices(
+    client: TestClient,
+):
+    card_id = _create_card(client)
+    category_id = _create_category(client, "Transporte")
+
+    res = client.post(
+        "/expenses/installments",
+        json={
+            "value": "120.50",
+            "description": " Gasolina ",
+            "expense_category_id": category_id,
+            "credit_card_id": card_id,
+            "launch_date": "2026-11-10",
+            "installments": 3,
+        },
+    )
+    assert res.status_code == 201
+    body = res.json()
+    assert [item["description"] for item in body] == [
+        "Gasolina 1/3",
+        "Gasolina 2/3",
+        "Gasolina 3/3",
+    ]
+    assert [item["launch_date"] for item in body] == [
+        "2026-11-10",
+        "2026-12-10",
+        "2027-01-10",
+    ]
+    assert all(item["value"] == "120.50" for item in body)
+    assert all(item["payment_method"] == "credit" for item in body)
+    assert all(item["credit_card_id"] == card_id for item in body)
+
+    listed = client.get("/expenses").json()
+    assert len(listed) == 3
+
+
+def test_installments_respect_card_closing_day_at_month_end(client: TestClient):
+    card_id = _create_card(client)
+    category_id = _create_category(client)
+    settings_res = client.put(
+        f"/credit-cards/{card_id}/settings",
+        json={"due_day": 5, "closing_day": 28, "limits": []},
+    )
+    assert settings_res.status_code == 200
+
+    res = client.post(
+        "/expenses/installments",
+        json={
+            "value": "50.00",
+            "description": "Curso",
+            "expense_category_id": category_id,
+            "credit_card_id": card_id,
+            "launch_date": "2027-01-30",
+            "installments": 3,
+        },
+    )
+    assert res.status_code == 201
+    # Jan 30 is already in the cycle closing Feb 28; the 2nd installment must
+    # move to the next cycle (Mar 1 - Mar 28) instead of clamping to Feb 28.
+    assert [item["launch_date"] for item in res.json()] == [
+        "2027-01-30",
+        "2027-03-01",
+        "2027-03-30",
+    ]
+
+
+def test_installments_validation(client: TestClient):
+    card_id = _create_card(client)
+    category_id = _create_category(client)
+    base = {
+        "value": "10.00",
+        "description": "Compra",
+        "expense_category_id": category_id,
+        "credit_card_id": card_id,
+        "launch_date": "2026-11-10",
+        "installments": 3,
+    }
+
+    assert (
+        client.post(
+            "/expenses/installments", json={**base, "installments": 1}
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/expenses/installments", json={**base, "installments": 49}
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post("/expenses/installments", json={**base, "value": "0"}).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/expenses/installments", json={**base, "description": "x" * 252}
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/expenses/installments", json={**base, "credit_card_id": 9999}
+        ).status_code
+        == 400
+    )
+    assert client.get("/expenses").json() == []

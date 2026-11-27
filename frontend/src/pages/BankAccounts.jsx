@@ -262,7 +262,7 @@ export default function BankAccounts() {
         </div>
 
         <Link
-          to="/dreams"
+          to="/dreams/goals"
           className="themed-card themed-border border rounded-xl p-5 hover:shadow-md transition block"
         >
           <h2 className="font-semibold mb-1">Objetivos Disponíveis</h2>
@@ -295,7 +295,7 @@ export default function BankAccounts() {
 
           <div className="relative lg:col-span-4">
             <Link
-              to="/dreams"
+              to="/dreams/goals"
               className="absolute -top-6 left-0 text-sm font-medium text-blue-500 hover:underline"
             >
               + adicionar objetivo

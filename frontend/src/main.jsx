@@ -32,6 +32,8 @@ import ReadingList from "./pages/ReadingList.jsx";
 import DailyRoutine from "./pages/DailyRoutine.jsx";
 import Dreams from "./pages/Dreams.jsx";
 import DreamDetails from "./pages/DreamDetails.jsx";
+import GoalsAchievements from "./pages/GoalsAchievements.jsx";
+import CrossoverPoint from "./pages/CrossoverPoint.jsx";
 import Finances from "./pages/Finances.jsx";
 import DayManagement from "./pages/DayManagement.jsx";
 import Patrimony from "./pages/Patrimony.jsx";
@@ -103,7 +105,12 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               <Route path="/habits/:id/edit" element={<EditHabit />} />
               <Route path="/reading-list" element={<ReadingList />} />
               <Route path="/daily-routine" element={<DailyRoutine />} />
-              <Route path="/dreams" element={<Dreams />} />
+              <Route path="/dreams" element={<GoalsAchievements />} />
+              <Route path="/dreams/goals" element={<Dreams />} />
+              <Route
+                path="/dreams/crossover-point"
+                element={<CrossoverPoint />}
+              />
               <Route path="/dreams/:id" element={<DreamDetails />} />
               <Route path="/finances" element={<Finances />} />
               <Route path="/finances/credit-cards" element={<CreditCards />} />

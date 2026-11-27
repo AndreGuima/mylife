@@ -155,3 +155,40 @@ def build_timeline(
         )
         current += timedelta(days=1)
     return points
+
+
+def installment_launch_dates(
+    first_date: date, count: int, boundary_day: int | None = None
+) -> list[date]:
+    """Launch dates for ``count`` monthly installments starting at ``first_date``.
+
+    Each installment keeps the purchase day shifted one month at a time. When
+    the card has a cycle boundary (closing day), the date is also clamped into
+    the k-th cycle after the purchase, so every installment lands in its own
+    statement even when month-end clamping would make two dates share one
+    cycle (e.g. purchase on Jan 30 with closing day 28).
+    """
+    if count < 1:
+        raise ValueError("count must be at least 1")
+
+    first_cycle_end = (
+        compute_cycle(boundary_day, first_date)[1] if boundary_day else None
+    )
+    dates: list[date] = []
+    for k in range(count):
+        year, month = _shift_month(first_date.year, first_date.month, k)
+        candidate = _clamped_date(year, month, first_date.day)
+
+        if first_cycle_end is not None:
+            end_year, end_month = _shift_month(
+                first_cycle_end.year, first_cycle_end.month, k
+            )
+            cycle_end = _clamped_date(end_year, end_month, boundary_day)
+            prev_year, prev_month = _shift_month(end_year, end_month, -1)
+            cycle_start = _clamped_date(
+                prev_year, prev_month, boundary_day
+            ) + timedelta(days=1)
+            candidate = min(max(candidate, cycle_start), cycle_end)
+
+        dates.append(candidate)
+    return dates

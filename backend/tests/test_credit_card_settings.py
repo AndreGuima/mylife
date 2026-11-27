@@ -305,3 +305,24 @@ def test_settings_rejects_invalid_closing_day(client: TestClient):
             json={"due_day": 10, "closing_day": bad, "limits": []},
         )
         assert res.status_code == 422
+
+
+def test_installment_launch_dates_without_cycle_keeps_day_and_clamps():
+    from services.credit_card_cycle import installment_launch_dates
+
+    assert installment_launch_dates(date(2026, 12, 31), 3) == [
+        date(2026, 12, 31),
+        date(2027, 1, 31),
+        date(2027, 2, 28),
+    ]
+
+
+def test_installment_launch_dates_one_per_cycle():
+    from services.credit_card_cycle import compute_cycle, installment_launch_dates
+
+    for closing_day in (1, 5, 15, 28, 30, 31):
+        for start in (date(2027, 1, 1), date(2027, 1, 29), date(2027, 1, 31)):
+            dates = installment_launch_dates(start, 12, closing_day)
+            cycle_ends = [compute_cycle(closing_day, d)[1] for d in dates]
+            assert len(set(cycle_ends)) == 12, (closing_day, start, dates)
+            assert cycle_ends == sorted(cycle_ends)
